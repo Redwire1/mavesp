@@ -1,0 +1,118 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "c:/Users/simon/OneDrive/Personal Projects/Ardupilot ESP32 Mavelink2 Webserver/mavesp/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/EEPROM",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WebServer/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266mDNS/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WiFi/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/include",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/libc/xtensa-lx106-elf/include",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/cores/esp8266",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/lwip2/include",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/variants/nodemcu",
+                "c:/Users/simon/OneDrive/Personal Projects/Ardupilot ESP32 Mavelink2 Webserver/mavesp/lib/mavlink",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ArduinoOTA",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/DNSServer/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266AVRISP/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266HTTPClient/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266HTTPUpdateServer/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266LLMNR",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266NetBIOS",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266SSDP",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WiFiMesh/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266httpUpdate/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Ethernet/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/GDBStub/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Hash/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SD/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SPI",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SPISlave/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Servo/src",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SoftwareSerial",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/TFT_Touch_Shield_V2",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Ticker",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Wire",
+                "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/esp8266/src",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "c:/Users/simon/OneDrive/Personal Projects/Ardupilot ESP32 Mavelink2 Webserver/mavesp/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/EEPROM",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WebServer/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266mDNS/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WiFi/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/include",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/libc/xtensa-lx106-elf/include",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/cores/esp8266",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/tools/sdk/lwip2/include",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/variants/nodemcu",
+                    "c:/Users/simon/OneDrive/Personal Projects/Ardupilot ESP32 Mavelink2 Webserver/mavesp/lib/mavlink",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ArduinoOTA",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/DNSServer/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266AVRISP/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266HTTPClient/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266HTTPUpdateServer/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266LLMNR",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266NetBIOS",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266SSDP",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266WiFiMesh/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/ESP8266httpUpdate/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Ethernet/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/GDBStub/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Hash/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SD/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SPI",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SPISlave/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Servo/src",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/SoftwareSerial",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/TFT_Touch_Shield_V2",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Ticker",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/Wire",
+                    "C:/Users/simon/.platformio/packages/framework-arduinoespressif8266@2.20500.190223/libraries/esp8266/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60118",
+                "ESP8266",
+                "ARDUINO_ARCH_ESP8266",
+                "ARDUINO_ESP8266_ESP12",
+                "PIO_SRC_REV=git",
+                "PIO_BUILD_DATE=date",
+                "PIO_BUILD_TIME=date",
+                "PIO_BOARD=esp12e",
+                "F_CPU=80000000L",
+                "__ets__",
+                "ICACHE_FLASH",
+                "ARDUINO=10805",
+                "ARDUINO_BOARD=\"PLATFORMIO_ESP12E\"",
+                "FLASHMODE_DIO",
+                "LWIP_OPEN_SRC",
+                "TCP_MSS=536",
+                "LWIP_FEATURES=1",
+                "LWIP_IPV6=0",
+                "VTABLES_IN_FLASH",
+                ""
+            ],
+            "cStandard": "gnu99",
+            "cppStandard": "c++11",
+            "compilerPath": "C:/Users/simon/.platformio/packages/toolchain-xtensa@1.40802.0/bin/xtensa-lx106-elf-gcc.exe",
+            "compilerArgs": [
+                "-mlongcalls",
+                "-mtext-section-literals",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}
