@@ -105,7 +105,11 @@ MavESP8266Log::log(const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     char temp[1024];
+#ifdef ARDUINO_ARCH_ESP32
+    size_t len = vsnprintf(temp, 1024, format, arg);
+#else
     size_t len = ets_vsnprintf(temp, 1024, format, arg);
+#endif
 #ifdef ENABLE_DEBUG
     Serial1.print(temp);
 #endif

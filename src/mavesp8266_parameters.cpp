@@ -174,7 +174,11 @@ MavESP8266Parameters::resetToDefaults()
     strncpy(_wifi_password,     kDEFAULT_PASSWORD,  sizeof(_wifi_password));
     strncpy(_wifi_ssidsta,      kDEFAULT_SSID,      sizeof(_wifi_ssidsta));
     strncpy(_wifi_passwordsta,  kDEFAULT_PASSWORD,  sizeof(_wifi_passwordsta));
+#ifdef ARDUINO_ARCH_ESP32
+    _flash_left = ESP.getSketchSize();
+#else
     _flash_left = ESP.getFreeSketchSpace();
+#endif
 }
 
 //---------------------------------------------------------------------------------
@@ -205,7 +209,11 @@ MavESP8266Parameters::loadAllFromEeprom()
     #endif
     //-- Version if hardwired
     _sw_version = MAVESP8266_VERSION;
+#ifdef ARDUINO_ARCH_ESP32
+    _flash_left = ESP.getSketchSize();
+#else
     _flash_left = ESP.getFreeSketchSpace();
+#endif
 }
 
 //---------------------------------------------------------------------------------

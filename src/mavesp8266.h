@@ -30,7 +30,7 @@
 
 /**
  * @file mavesp8266.h
- * ESP8266 Wifi AP, MavLink UART/UDP Bridge
+ * ESP8266/ESP32 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
@@ -38,17 +38,25 @@
 #ifndef MAVESP8266_H
 #define MAVESP8266_H
 
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <WiFiUdp.h>
+#ifdef ARDUINO_ARCH_ESP32
+    #include <WiFi.h>
+    #include <WiFiClient.h>
+    #include <WiFiUdp.h>
+#else
+    #include <ESP8266WiFi.h>
+    #include <WiFiClient.h>
+    #include <WiFiUdp.h>
+#endif
 
 #undef F
 #include <ardupilotmega/mavlink.h>
 
- extern "C" {
-    // Espressif SDK
+#ifndef ARDUINO_ARCH_ESP32
+extern "C" {
+    // Espressif SDK (ESP8266 only)
     #include "user_interface.h"
 }
+#endif
 
 class MavESP8266Parameters;
 class MavESP8266Component;

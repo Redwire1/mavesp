@@ -41,7 +41,12 @@
 #include "mavesp8266_gcs.h"
 #include "mavesp8266_vehicle.h"
 
-#include <ESP8266WebServer.h>
+#ifdef ARDUINO_ARCH_ESP32
+    #include <WebServer.h>
+    #include <Update.h>
+#else
+    #include <ESP8266WebServer.h>
+#endif
 
 const char PROGMEM kTEXTPLAIN[]  = "text/plain";
 const char PROGMEM kTEXTHTML[]   = "text/html";
@@ -88,7 +93,11 @@ const char* kFlashMaps[7] = {
 static uint32_t flash = 0;
 static char paramCRC[12] = {""};
 
+#ifdef ARDUINO_ARCH_ESP32
+WebServer           webServer(80);
+#else
 ESP8266WebServer    webServer(80);
+#endif
 MavESP8266Update*   updateCB    = NULL;
 bool                started     = false;
 
@@ -141,13 +150,19 @@ void handle_upload_status() {
         #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.setDebugOutput(true);
         #endif
+#ifndef ARDUINO_ARCH_ESP32
         WiFiUDP::stopAll();
+#endif
         Serial.end();
         #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.printf("Update: %s\n", upload.filename.c_str());
         #endif
+#ifdef ARDUINO_ARCH_ESP32
+        if(!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+#else
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         if(!Update.begin(maxSketchSpace)) {
+#endif
             #ifdef DEBUG_SERIAL
                 Update.printError(DEBUG_SERIAL);
             #endif
@@ -258,12 +273,12 @@ static void handle_setup()
 
     message += "WiFi Mode:&nbsp;";
     message += "<input type='radio' name='mode' value='0'";
-    if (getWorld()->getParameters()->getWifiMode() == WIFI_MODE_AP) {
+    if (getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_AP) {
         message += " checked";
     }
     message += ">AccessPoint\n";
     message += "<input type='radio' name='mode' value='1'";
-    if (getWorld()->getParameters()->getWifiMode() == WIFI_MODE_STA) {
+    if (getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_STA) {
         message += " checked";
     }
     message += ">Station<br>\n";
@@ -341,8 +356,13 @@ static void handle_setup()
 //---------------------------------------------------------------------------------
 static void handle_getStatus()
 {
+#ifdef ARDUINO_ARCH_ESP32
+    if(!flash)
+        flash = ESP.getSketchSize();
+#else
     if(!flash)
         flash = ESP.getFreeSketchSpace();
+#endif
     if(!paramCRC[0]) {
         snprintf(paramCRC, sizeof(paramCRC), "%08X", getWorld()->getParameters()->paramHashCheck());
     }
@@ -370,7 +390,11 @@ static void handle_getStatus()
     message += "</td></tr></table>";
     message += "<p>System Status</p><table>\n";
     message += "<tr><td width=\"240\">Flash Size</td><td>";
+#ifdef ARDUINO_ARCH_ESP32
+    message += ESP.getFlashChipSize();
+#else
     message += ESP.getFlashChipRealSize();
+#endif
     message += "</td></tr>\n";
     message += "<tr><td width=\"240\">Flash Available</td><td>";
     message += flash;
@@ -406,11 +430,34 @@ void handle_getJLog()
 //---------------------------------------------------------------------------------
 void handle_getJSysInfo()
 {
+#ifdef ARDUINO_ARCH_ESP32
+    if(!flash)
+        flash = ESP.getSketchSize();
+#else
     if(!flash)
         flash = ESP.getFreeSketchSpace();
+#endif
     if(!paramCRC[0]) {
         snprintf(paramCRC, sizeof(paramCRC), "%08X", getWorld()->getParameters()->paramHashCheck());
     }
+#ifdef ARDUINO_ARCH_ESP32
+    char message[512];
+    snprintf(message, 512,
+        "{ "
+        "\"size\": \"%u MB\", "
+        "\"id\": \"ESP32-S3\", "
+        "\"flashfree\": \"%u\", "
+        "\"heapfree\": \"%u\", "
+        "\"logsize\": \"%u\", "
+        "\"paramcrc\": \"%s\""
+        " }",
+        ESP.getFlashChipSize() / (1024 * 1024),
+        flash,
+        ESP.getFreeHeap(),
+        getWorld()->getLogger()->getPosition(),
+        paramCRC
+    );
+#else
     uint32_t fid = spi_flash_get_id();
     char message[512];
     snprintf(message, 512,
@@ -429,6 +476,7 @@ void handle_getJSysInfo()
         getWorld()->getLogger()->getPosition(),
         paramCRC
     );
+#endif
     webServer.send(200, "application/json", message);
 }
 

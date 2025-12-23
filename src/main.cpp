@@ -30,7 +30,7 @@
 
 /**
  * @file main.cpp
- * ESP8266 Wifi AP, MavLink UART/UDP Bridge
+ * ESP8266/ESP32 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
@@ -42,7 +42,11 @@
 #include "mavesp8266_httpd.h"
 #include "mavesp8266_component.h"
 
-#include <ESP8266mDNS.h>
+#ifdef ARDUINO_ARCH_ESP32
+    #include <ESPmDNS.h>
+#else
+    #include <ESP8266mDNS.h>
+#endif
 
 #define GPIO02  2
 
@@ -109,7 +113,11 @@ void wait_for_client() {
 #ifdef ENABLE_DEBUG
     int wcount = 0;
 #endif
+#ifdef ARDUINO_ARCH_ESP32
+    uint8_t client_count = WiFi.softAPgetStationNum();
+#else
     uint8 client_count = wifi_softap_get_station_num();
+#endif
     while (!client_count) {
 #ifdef ENABLE_DEBUG
         Serial1.print(".");
@@ -119,7 +127,11 @@ void wait_for_client() {
         }
 #endif
         delay(1000);
+#ifdef ARDUINO_ARCH_ESP32
+        client_count = WiFi.softAPgetStationNum();
+#else
         client_count = wifi_softap_get_station_num();
+#endif
     }
     DEBUG_LOG("Got %d client(s)\n", client_count);
 }
@@ -129,7 +141,11 @@ void wait_for_client() {
 void reset_interrupt(){
     Parameters.resetToDefaults();
     Parameters.saveAllToEeprom();
+#ifdef ARDUINO_ARCH_ESP32
+    ESP.restart();
+#else
     ESP.reset();
+#endif
 }
 
 //---------------------------------------------------------------------------------
@@ -149,11 +165,15 @@ void setup() {
     Logger.begin(2048);
 
     DEBUG_LOG("\nConfiguring access point...\n");
+#ifdef ARDUINO_ARCH_ESP32
+    DEBUG_LOG("Free Heap: %u\n", ESP.getFreeHeap());
+#else
     DEBUG_LOG("Free Sketch Space: %u\n", ESP.getFreeSketchSpace());
+#endif
 
     WiFi.disconnect(true);
 
-    if(Parameters.getWifiMode() == WIFI_MODE_STA){
+    if(Parameters.getWifiMode() == MAVESP_WIFI_MODE_STA){
         //-- Connect to an existing network
         WiFi.mode(WIFI_STA);
         WiFi.config(Parameters.getWifiStaIP(), Parameters.getWifiStaGateway(), Parameters.getWifiStaSubnet(), 0U, 0U);
@@ -172,21 +192,30 @@ void setup() {
         } else {
             //-- Fall back to AP mode if no connection could be established
             WiFi.disconnect(true);
-            Parameters.setWifiMode(WIFI_MODE_AP);
+            Parameters.setWifiMode(MAVESP_WIFI_MODE_AP);
         }
     }
 
-    if(Parameters.getWifiMode() == WIFI_MODE_AP){
+    if(Parameters.getWifiMode() == MAVESP_WIFI_MODE_AP){
         //-- Start AP
         WiFi.mode(WIFI_AP);
+#ifdef ARDUINO_ARCH_ESP32
+        WiFi.softAP(Parameters.getWifiSsid(), Parameters.getWifiPassword(), Parameters.getWifiChannel());
+#else
         WiFi.encryptionType(AUTH_WPA2_PSK);
         WiFi.softAP(Parameters.getWifiSsid(), Parameters.getWifiPassword(), Parameters.getWifiChannel());
+#endif
         localIP = WiFi.softAPIP();
         wait_for_client();
     }
 
-    //-- Boost power to Max
+#ifdef ARDUINO_ARCH_ESP32
+    //-- Boost power to Max (ESP32)
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+#else
+    //-- Boost power to Max (ESP8266)
     WiFi.setOutputPower(20.5);
+#endif
     //-- MDNS
     char mdsnName[256];
     sprintf(mdsnName, "MavEsp8266-%d",localIP[3]);
