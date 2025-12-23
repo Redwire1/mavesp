@@ -1,0 +1,41 @@
+Physical Pin,Side,GPIO,Function_1,Function_2,Function_3,Current_Use_or_Allocated
+1,Left,3V3,Power,,,Power supply
+2,Left,EN,Reset,,,Reset button
+3,Left,4,CAM_SIOD,ADC1_CH3,Touch 4,CAM_SIOD
+4,Left,5,CAM_SIOC,ADC1_CH4,Touch 5,CAM_SIOC
+5,Left,6,CAM_VYSYNC,ADC1_CH5,Touch 6,CAM_VYSYNC
+6,Left,7,CAM_HREF,ADC1_CH6,Touch 7,CAM_HREF
+7,Left,15,CAM_XCLK,ADC2_CH4,UART0 RTS,CAM_XCLK
+8,Left,16,CAM_Y9,ADC2_CH5,UART0 CTS,CAM_Y9
+9,Left,17,CAM_Y8,ADC2_CH6,UART1 TX,CAM_Y8
+10,Left,18,CAM_Y7,ADC2_CH7,UART1 RX,CAM_Y7
+11,Left,8,CAM_Y4,ADC1_CH7,Touch 8,CAM_Y4
+12,Left,3,JTAG_EN,ADC1_CH2,Touch 3,Unused
+13,Left,46,JTAG_LOG,,Strapping,Unused
+14,Left,9,CAM_Y3,ADC2_CH8,Touch 9,CAM_Y3
+15,Left,10,CAM_Y5,ADC2_CH9,,CAM_Y5
+16,Left,11,CAM_Y2,ADC2_CH0,,CAM_Y2
+17,Left,12,CAM_Y6,ADC2_CH1,,CAM_Y6
+18,Left,13,CAM_PCLK,ADC2_CH2,,CAM_PCLK
+19,Left,14,,ADC2_CH3,Touch 14,Unused
+20,Left,5V,,,,Power input
+21,Right,43,U0TXD,LED_TX,,USB Serial TX/MAVLink TX
+22,Right,44,U0RXD,LED_RX,,USB Serial RX/MAVLink RX
+23,Right,1,,ADC1_CH0,Touch 1,Unused
+24,Right,2,LED_ON,ADC1_CH1,Touch 2,Unused
+25,Right,42,SD Card CMD,,JTAG TMS,SD Card
+26,Right,41,SD Card CLK,,JTAG TDI,SD Card
+27,Right,40,SD_DATA,I2C_DATA,JTAG TDO,SD Card
+28,Right,39,SD_CLK,I2C_CLK,JTAG TCK,SD Card
+29,Right,38,SD_CMD,,,SD Card
+30,Right,37,PSRAM,,,Unused
+31,Right,36,PSRAM,,,Unused
+32,Right,35,PSRAM,,,Unused
+33,Right,0,Boot,,Strapping,Boot button
+34,Right,45,VSPI,,Strapping,Unused
+35,Right,48,WS2812,,RGB LED,WS2812
+36,Right,47,,,,Unused
+37,Right,21,,,,Unused
+38,Right,20,USB D+,,,USB D+
+39,Right,19,USB D-,,,USB D-
+40,Right,GND,Ground,,,Ground
