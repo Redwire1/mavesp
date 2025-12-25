@@ -41,6 +41,7 @@
 #include "mavesp8266_vehicle.h"
 #include "mavesp8266_httpd.h"
 #include "mavesp8266_component.h"
+#include "mavesp8266_ppm.h"
 
 #ifdef ARDUINO_ARCH_ESP32
     #include <ESPmDNS.h>
@@ -87,6 +88,7 @@ MavESP8266Vehicle       Vehicle;
 MavESP8266Httpd         updateServer;
 MavESP8266UpdateImp     updateStatus;
 MavESP8266Log           Logger;
+MavESP8266PPM           PWMConverter;
 
 //---------------------------------------------------------------------------------
 //-- Accessors
@@ -97,6 +99,7 @@ public:
     MavESP8266Vehicle*      getVehicle      () { return &Vehicle;       }
     MavESP8266GCS*          getGCS          () { return &GCS;           }
     MavESP8266Log*          getLogger       () { return &Logger;        }
+    MavESP8266PPM*          getPWM          () { return &PWMConverter;  }
 };
 
 MavESP8266WorldImp      World;
@@ -231,6 +234,10 @@ void setup() {
     gcs_ip[3] = 255;
     GCS.begin(&Vehicle, gcs_ip);
     Vehicle.begin(&GCS);
+    //-- Initialize PWM Converter (ESP32 only) - Now using polling (WiFi-safe)
+#ifdef ARDUINO_ARCH_ESP32
+    PWMConverter.begin();
+#endif
     //-- Initialize Update Server
     updateServer.begin(&updateStatus);
 }
@@ -250,5 +257,8 @@ void loop() {
             Vehicle.readMessage();
         }
     }
+#ifdef ARDUINO_ARCH_ESP32
+    PWMConverter.update();  // Now on GPIO14 (no conflict with GPIO2 factory reset)
+#endif
     updateServer.checkUpdates();
 }
