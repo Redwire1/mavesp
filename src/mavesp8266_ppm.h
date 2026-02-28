@@ -30,8 +30,8 @@
 
 /**
  * @file mavesp8266_ppm.h
- * ArduPilot Servo PWM to Motor Controller PWM Converter
- * Converts standard servo PWM (1000-2000us @ 50Hz) to 16kHz PWM for motor controller
+ * ArduPilot Servo Output to Motor Controller PWM Converter
+ * Extracts servo output from MAVLink SERVO_OUTPUT_RAW messages and outputs 16kHz PWM
  *
  */
 
@@ -39,20 +39,21 @@
 #define MAVESP8266_PPM_H
 
 #include <Arduino.h>
+#include "../lib/mavlink/mavlink_types.h"
+#include "../lib/mavlink/common/common.h"
 
 // GPIO Pin Configuration
-#define PWM_INPUT_PIN   1    // GPIO1 - ArduPilot servo PWM input
-#define PWM_OUTPUT_PIN  14   // GPIO14 - 16kHz PWM output to motor controller (GPIO2 conflicts with factory reset)
+#define PWM_OUTPUT_PIN  14   // GPIO14 - 16kHz PWM output to motor controller
 
-// PWM Output Configuration (16kHz for motor controller)
-#define PWM_FREQ        16000   // 16kHz output frequency
-#define PWM_RESOLUTION  12      // 12-bit resolution (0-4095)
+// PWM Output Configuration (490Hz for ZS-X11H motor controller)
+#define PWM_FREQ        490     // 490Hz output frequency (ZS-X11H requirement)
+#define PWM_RESOLUTION  8       // 8-bit resolution (0-255)
 #define PWM_CHANNEL     0       // LEDC channel 0
 
-// Input Signal Configuration
-#define PWM_MIN_PULSE   1000    // Minimum valid pulse width (us)
-#define PWM_MAX_PULSE   2000    // Maximum valid pulse width (us)
-#define PWM_TIMEOUT_MS  100     // Signal loss timeout (ms)
+// Servo Input Configuration
+#define SERVO_MIN_PULSE     1000    // Minimum valid servo value (us)
+#define SERVO_MAX_PULSE     2000    // Maximum valid servo value (us)
+#define SERVO_TIMEOUT_MS    1000    // Signal loss timeout (ms) - SERVO_OUTPUT_RAW at ~50Hz
 
 class MavESP8266PPM
 {
@@ -63,31 +64,28 @@ public:
     void    begin();
     void    update();
     
+    // MAVLink message handler
+    void    handleServoOutput(const mavlink_message_t* msg);
+    
     // Getters for monitoring
-    uint16_t getPulseWidth()    { return _pulseWidth; }
+    uint16_t getServoValue()    { return _servoValue; }
     uint16_t getDutyCycle()     { return _dutyCycle; }
+    uint8_t  getServoChannel()  { return _servoChannel; }
     bool     isSignalValid()    { return _signalValid; }
     
 private:
     // Signal processing
-    void        _processPulse();
     void        _updatePWMOutput();
     void        _setFailsafe();
-    uint16_t    _mapPulseToDuty(uint16_t pulseWidth);
-    
-    // Interrupt handler (must be static)
-    static void IRAM_ATTR _handleInterrupt();
+    uint16_t    _mapServoValueToDuty(uint16_t servoValue);
     
     // State variables
-    volatile unsigned long  _lastRiseTime;
-    volatile unsigned long  _pulseWidthRaw;
-    volatile bool           _newPulse;
-    
-    uint16_t    _pulseWidth;        // Filtered pulse width (us)
-    uint16_t    _dutyCycle;         // Current duty cycle (0-4095)
-    uint32_t    _lastValidPulse;    // Last valid pulse timestamp (ms)
-    bool        _signalValid;       // Signal valid flag
-    bool        _initialized;       // Initialization flag
+    uint16_t        _servoValue;        // Current servo value (1000-2000us)
+    uint16_t        _dutyCycle;         // Current PWM duty cycle (0-4095)
+    uint8_t         _servoChannel;      // Servo channel to monitor (5-16)
+    unsigned long   _lastServoUpdate;   // Last time SERVO_OUTPUT_RAW received
+    bool            _signalValid;       // True if servo signal is recent and valid
+    bool            _initialized;       // True after begin() called
 };
 
 #endif // MAVESP8266_PPM_H

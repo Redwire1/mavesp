@@ -30,37 +30,28 @@
 
 /**
  * @file mavesp8266_ppm.cpp
- * ArduPilot Servo PWM to Motor Controller PWM Converter
+ * ArduPilot Servo Output to Motor Controller PWM Converter
  *
  */
 
+#include "mavesp8266.h"
 #include "mavesp8266_ppm.h"
-
-// Static instance pointer for ISR access
-static MavESP8266PPM* _instance = nullptr;
+#include "mavesp8266_parameters.h"
 
 //---------------------------------------------------------------------------------
 MavESP8266PPM::MavESP8266PPM()
-    : _lastRiseTime(0)
-    , _pulseWidthRaw(0)
-    , _newPulse(false)
-    , _pulseWidth(1500)
+    : _servoValue(1500)
     , _dutyCycle(0)
-    , _lastValidPulse(0)
+    , _servoChannel(5)
+    , _lastServoUpdate(0)
     , _signalValid(false)
     , _initialized(false)
 {
-    _instance = this;
 }
 
 //---------------------------------------------------------------------------------
 MavESP8266PPM::~MavESP8266PPM()
 {
-    if (_initialized) {
-        // Interrupt-based approach disabled, nothing to detach
-        // detachInterrupt(PWM_INPUT_PIN);
-    }
-    _instance = nullptr;
 }
 
 //---------------------------------------------------------------------------------
@@ -68,10 +59,17 @@ void
 MavESP8266PPM::begin()
 {
 #ifdef ARDUINO_ARCH_ESP32
-    // Configure input pin with PULLDOWN to prevent floating state
-    pinMode(PWM_INPUT_PIN, INPUT_PULLDOWN);
+    // Load servo channel from parameters (5-16, default 5)
+    _servoChannel = getWorld()->getParameters()->getPWMServoChannel();
     
-    // Configure LEDC for 16kHz PWM output
+    // Validate and clamp to 5-16 range
+    if (_servoChannel < 5) {
+        _servoChannel = 5;
+    } else if (_servoChannel > 16) {
+        _servoChannel = 16;
+    }
+    
+    // Configure LEDC for 490Hz PWM output (ZS-X11H requirement)
     ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
     ledcAttachPin(PWM_OUTPUT_PIN, PWM_CHANNEL);
     
@@ -79,16 +77,10 @@ MavESP8266PPM::begin()
     ledcWrite(PWM_CHANNEL, 0);
     _dutyCycle = 0;
     
-    // NOTE: Interrupt-based reading disabled - causes WiFi crashes
-    // Use polling-based approach instead (safer with WiFi)
-    // attachInterrupt(PWM_INPUT_PIN, _handleInterrupt, CHANGE);
-    
     _initialized = true;
-    _lastValidPulse = millis();
-    
-    Serial.println("PWM Converter initialized: GPIO1 input -> GPIO2 output @ 16kHz (polling mode)");
+    _lastServoUpdate = millis();
 #else
-    Serial.println("PWM Converter only supported on ESP32");
+    // PWM Converter only supported on ESP32
 #endif
 }
 
@@ -100,132 +92,96 @@ MavESP8266PPM::update()
         return;
     }
     
-    // Polling-based PWM reading (WiFi-safe, no interrupts)
-    static unsigned long lastRiseTime = 0;
-    static bool lastState = false;
-    
-    bool currentState = digitalRead(PWM_INPUT_PIN);
-    unsigned long now = micros();
-    
-    // Detect rising edge
-    if (currentState && !lastState) {
-        lastRiseTime = now;
-    }
-    // Detect falling edge
-    else if (!currentState && lastState && lastRiseTime > 0) {
-        unsigned long pulseWidth = now - lastRiseTime;
-        
-        // Validate pulse width is in expected range
-        if (pulseWidth >= PWM_MIN_PULSE && pulseWidth <= PWM_MAX_PULSE) {
-            _pulseWidth = (uint16_t)pulseWidth;
-            _lastValidPulse = millis();
-            _signalValid = true;
-            _processPulse();
-        }
-        
-        lastRiseTime = 0;
-    }
-    
-    lastState = currentState;
-    
-    // Check for signal timeout
-    if (_signalValid && (millis() - _lastValidPulse > PWM_TIMEOUT_MS)) {
+    // Check for servo signal timeout (1000ms)
+    if (_signalValid && (millis() - _lastServoUpdate) > SERVO_TIMEOUT_MS) {
+        _signalValid = false;
         _setFailsafe();
     }
 }
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266PPM::_processPulse()
+MavESP8266PPM::handleServoOutput(const mavlink_message_t* msg)
 {
-    // Map pulse width to duty cycle
-    uint16_t newDuty = _mapPulseToDuty(_pulseWidth);
-    
-    // Update output if changed
-    if (newDuty != _dutyCycle) {
-        _dutyCycle = newDuty;
-        _updatePWMOutput();
+    if (!_initialized) {
+        return;
     }
+    
+    // Extract servo value based on configured channel (5-16)
+    uint16_t servoValue = 0;
+    
+    switch (_servoChannel) {
+        case 5:  servoValue = mavlink_msg_servo_output_raw_get_servo5_raw(msg); break;
+        case 6:  servoValue = mavlink_msg_servo_output_raw_get_servo6_raw(msg); break;
+        case 7:  servoValue = mavlink_msg_servo_output_raw_get_servo7_raw(msg); break;
+        case 8:  servoValue = mavlink_msg_servo_output_raw_get_servo8_raw(msg); break;
+        case 9:  servoValue = mavlink_msg_servo_output_raw_get_servo9_raw(msg); break;
+        case 10: servoValue = mavlink_msg_servo_output_raw_get_servo10_raw(msg); break;
+        case 11: servoValue = mavlink_msg_servo_output_raw_get_servo11_raw(msg); break;
+        case 12: servoValue = mavlink_msg_servo_output_raw_get_servo12_raw(msg); break;
+        case 13: servoValue = mavlink_msg_servo_output_raw_get_servo13_raw(msg); break;
+        case 14: servoValue = mavlink_msg_servo_output_raw_get_servo14_raw(msg); break;
+        case 15: servoValue = mavlink_msg_servo_output_raw_get_servo15_raw(msg); break;
+        case 16: servoValue = mavlink_msg_servo_output_raw_get_servo16_raw(msg); break;
+        default: return; // Invalid channel
+    }
+    
+    // Check for invalid servo values (0 = disabled, 65535 = invalid)
+    if (servoValue == 0 || servoValue == 65535) {
+        _signalValid = false;
+        _setFailsafe();
+        return;
+    }
+    
+    // Update servo value and timestamp
+    _servoValue = servoValue;
+    _lastServoUpdate = millis();
+    _signalValid = true;
+    
+    // Update PWM output
+    _updatePWMOutput();
 }
 
 //---------------------------------------------------------------------------------
 void
 MavESP8266PPM::_updatePWMOutput()
 {
-#ifdef ARDUINO_ARCH_ESP32
+    if (!_signalValid) {
+        return;
+    }
+    
+    // Map servo value (1000-2000us) to duty cycle (0-4095)
+    _dutyCycle = _mapServoValueToDuty(_servoValue);
+    
+    // Write to LEDC
     ledcWrite(PWM_CHANNEL, _dutyCycle);
-#endif
 }
 
 //---------------------------------------------------------------------------------
 void
 MavESP8266PPM::_setFailsafe()
 {
-    // Signal lost - set motor to 0% (off)
-    _signalValid = false;
+    // Stop motor (0% duty cycle)
     _dutyCycle = 0;
-    _updatePWMOutput();
-    
-    Serial.println("PWM Converter: Signal lost - failsafe activated (motor off)");
+    ledcWrite(PWM_CHANNEL, 0);
 }
 
 //---------------------------------------------------------------------------------
 uint16_t
-MavESP8266PPM::_mapPulseToDuty(uint16_t pulseWidth)
+MavESP8266PPM::_mapServoValueToDuty(uint16_t servoValue)
 {
-    // Map 1000-2000us input to 0-4095 duty cycle (12-bit)
-    // 1000us = 0% duty = 0
-    // 2000us = 100% duty = 4095
+    // Clamp servo value to valid range
+    if (servoValue < SERVO_MIN_PULSE) {
+        servoValue = SERVO_MIN_PULSE;
+    } else if (servoValue > SERVO_MAX_PULSE) {
+        servoValue = SERVO_MAX_PULSE;
+    }
     
-    // Constrain input
-    if (pulseWidth < PWM_MIN_PULSE) pulseWidth = PWM_MIN_PULSE;
-    if (pulseWidth > PWM_MAX_PULSE) pulseWidth = PWM_MAX_PULSE;
-    
-    // Linear mapping
-    uint32_t duty = ((uint32_t)(pulseWidth - PWM_MIN_PULSE) * 4095UL) / (PWM_MAX_PULSE - PWM_MIN_PULSE);
+    // Linear mapping: 1000us = 0%, 2000us = 100%
+    // duty = (servoValue - 1000) * 255 / 1000
+    uint32_t duty = ((uint32_t)(servoValue - SERVO_MIN_PULSE) * ((1 << PWM_RESOLUTION) - 1)) / 
+                    (SERVO_MAX_PULSE - SERVO_MIN_PULSE);
     
     return (uint16_t)duty;
 }
 
-// Old interrupt-based code - disabled to prevent WiFi crashes
-// Kept for reference - interrupts conflict with WiFi on ESP32
-/*
-//---------------------------------------------------------------------------------
-// Interrupt Service Routine - must be in IRAM and minimal code
-void IRAM_ATTR
-MavESP8266PPM::_handleInterrupt()
-{
-    if (_instance == nullptr) {
-        return;
-    }
-    
-    unsigned long now = micros();
-    
-    // Debounce: Ignore triggers within 20us of last interrupt (noise/bounce)
-    static unsigned long lastInterruptTime = 0;
-    if (now - lastInterruptTime < 20) {
-        return;
-    }
-    lastInterruptTime = now;
-    
-    // Use direct GPIO register read instead of digitalRead()
-    bool pinState = (GPIO.in >> PWM_INPUT_PIN) & 0x1;
-    
-    if (pinState) {
-        // Rising edge - start of pulse
-        _instance->_lastRiseTime = now;
-    } else {
-        // Falling edge - end of pulse
-        if (_instance->_lastRiseTime > 0) {
-            unsigned long pulseWidth = now - _instance->_lastRiseTime;
-            
-            // Basic validation in ISR (avoid processing garbage)
-            if (pulseWidth >= 500 && pulseWidth <= 2500) {
-                _instance->_pulseWidthRaw = pulseWidth;
-                _instance->_newPulse = true;
-            }
-            _instance->_lastRiseTime = 0; // Reset for next pulse
-        }
-    }
-}
-*/

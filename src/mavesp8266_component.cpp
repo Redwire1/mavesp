@@ -39,6 +39,7 @@
 #include "mavesp8266_component.h"
 #include "mavesp8266_parameters.h"
 #include "mavesp8266_vehicle.h"
+#include "mavesp8266_ppm.h"
 
 const char* kHASH_PARAM = "_HASH_CHECK";
 
@@ -122,6 +123,13 @@ MavESP8266Component::handleMessage(MavESP8266Bridge* sender, mavlink_message_t* 
               return true;
           }
       }
+  //-----------------------------------------------
+  //-- MAVLINK_MSG_ID_SERVO_OUTPUT_RAW
+  } else if(message->msgid == MAVLINK_MSG_ID_SERVO_OUTPUT_RAW) {
+      //-- Pass servo output to PWM converter
+      getWorld()->getPWM()->handleServoOutput(message);
+      //-- Don't eat the message, forward to GCS
+      return false;
   }
 
   //-- Couldn't handle the message, pass on

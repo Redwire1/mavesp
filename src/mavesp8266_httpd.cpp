@@ -71,6 +71,7 @@ const char* kDEBUG      = "debug";
 const char* kREBOOT     = "reboot";
 const char* kPOSITION   = "position";
 const char* kMODE       = "mode";
+const char* kSERVOCHAN  = "servochan";
 
 const char* kFlashMaps[7] = {
     "512KB (256/256)",
@@ -346,6 +347,20 @@ static void handle_setup()
     message += getWorld()->getParameters()->getUartBaudRate();
     message += "'><br>";
     
+    message += "PPM to PWM Ardupilot Channel (MAIN Port):&nbsp;<select name='servochan'>";
+    for(int i = 5; i <= 16; i++) {
+        message += "<option value='";
+        message += String(i);
+        message += "'";
+        if(i == getWorld()->getParameters()->getPWMServoChannel()) {
+            message += " selected";
+        }
+        message += ">";
+        message += String(i);
+        message += "</option>";
+    }
+    message += "</select><br>";
+    
     message += "<input type='submit' value='Save'>";
     message += "</form>";
     setNoCacheHeaders();
@@ -580,6 +595,10 @@ void handle_setParameters()
     if(webServer.hasArg(kMODE)) {
         ok = true;
         getWorld()->getParameters()->setWifiMode(webServer.arg(kMODE).toInt());
+    }
+    if(webServer.hasArg(kSERVOCHAN)) {
+        ok = true;
+        getWorld()->getParameters()->setPWMServoChannel(webServer.arg(kSERVOCHAN).toInt());
     }
     if(webServer.hasArg(kREBOOT)) {
         ok = true;

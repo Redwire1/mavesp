@@ -91,6 +91,7 @@ public:
         ID_SUBNETSTA,
         ID_UART,
         ID_RAW_ENABLE,
+        ID_PWM_SERVO_CHAN,
         ID_COUNT
     };
 
@@ -115,6 +116,7 @@ public:
     uint32_t    getWifiStaSubnet            ();
     uint32_t    getUartBaudRate             ();
     int8_t      getRawEnable                ();
+    uint8_t     getPWMServoChannel          ();
 
     void        setDebugEnabled             (int8_t enabled);
     void        setWifiMode                 (int8_t mode);
@@ -129,6 +131,7 @@ public:
     void        setWifiStaGateway           (uint32_t addr);
     void        setWifiStaSubnet            (uint32_t addr);
     void        setUartBaudRate             (uint32_t baud);
+    void        setPWMServoChannel         (uint8_t channel);
     void        setLocalIPAddress           (uint32_t ipAddress);
 
     stMavEspParameters* getAt               (int index);
