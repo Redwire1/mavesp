@@ -1,3 +1,32 @@
+<!--
+SYNC IMPACT REPORT
+==================
+Version change: 1.2.0 → 1.3.0 (MINOR — Naming Conventions section revised again)
+Ratified:       2026-04-19
+Last Amended:   2026-04-21
+
+Modified sections:
+  - Naming Conventions: Revised to remove all `mav`/`Mav` prefixes from
+    files, classes, and structs. Struct names now use `_t` suffix with
+    snake_case members. Class names use bare PascalCase (e.g. `Bridge`,
+    `Gcs`). File names use no prefix (e.g. `bridge.h`, `gcs.h`).
+  - Migration Table: Updated all "Renamed to" targets to reflect no-prefix
+    convention; `stMavEspParameters` → `parameters_t`.
+
+Spec artifacts updated to match:
+  ✅ specs/001-esp32-companion-computer/data-model.md  — struct/enum names + member names
+  ✅ specs/001-esp32-companion-computer/plan.md        — file tree, migration table, module refs
+  ✅ specs/001-esp32-companion-computer/contracts/http-api.md — struct type refs
+  ✅ specs/001-esp32-companion-computer/research.md    — struct type refs
+
+Templates checked (no naming-specific content — no updates required):
+  ✅ .specify/templates/plan-template.md
+  ✅ .specify/templates/spec-template.md
+  ✅ .specify/templates/tasks-template.md
+
+Deferred TODOs: none
+-->
+
 # ArduPilot ESP32 Webserver Constitution
 
 ## Core Principles
@@ -95,56 +124,61 @@ packets during flight.
 ## Naming Conventions
 
 All identifiers introduced by this project MUST follow the rules below.
-Non-conformant identifiers in existing files MUST be renamed before their
-respective module is otherwise modified. The migration table at the end of this
-section is authoritative for the current codebase.
+The migration table at the end of this section is authoritative.
 
 ### Files
 
-- Source files: `lower_snake_case` with paired `.h`/`.cpp` extensions.
-- File names MUST describe the module's responsibility concisely. Project-wide
-  prefixes (e.g. the legacy `mavesp8266_` prefix) MUST NOT be repeated in every
-  file name — the `src/` directory provides the namespace.
-- Header guards: `UPPER_SNAKE_CASE` matching the filename, e.g. `component.h`
-  → `#ifndef COMPONENT_H`.
+- Source files use no project prefix: `<module>.h` / `<module>.cpp`.
+  The legacy `mavesp8266_` prefix is removed entirely (e.g.
+  `mavesp8266_gcs.h` → `gcs.h`).
+- The root bridge module is named `bridge.h/.cpp` (was `mavesp8266.h/.cpp`).
+- Header guards: `<MODULE>_H` matching the filename, e.g. `gcs.h`
+  → `#ifndef GCS_H`.
 - Exception: `main.cpp` retains its name (Arduino/PlatformIO entry-point
   requirement). Library files under `lib/` that are vendored third-party code
   are exempt from renaming.
 
-### Classes and Structs
+### Classes
 
-- Class names: `PascalCase`. A short project-scoped prefix (`Mav`) MUST be used
-  for top-level project classes to avoid collisions with Arduino/ESP-IDF types.
-  The legacy verbose prefix `MavESP8266` MUST be shortened to `Mav`.
-  Examples: `MavBridge`, `MavGcs`, `MavVehicle`, `MavComponent`, `MavHttpd`,
-  `MavParameters`.
-- Struct typedefs: `lower_snake_case_t` suffix. Example: `mav_param_t`.
-- The Hungarian-notation struct prefix `st` MUST NOT be used.
+- Class names: `PascalCase`, no project prefix.
+  The legacy verbose prefix `MavESP8266` is removed.
+  Examples: `Bridge`, `Gcs`, `Vehicle`, `Component`, `Httpd`,
+  `Parameters`, `Ppm`.
+
+### Structs
+
+- Struct names: `snake_case_t` suffix. Example: `parameters_t`,
+  `telemetry_state_t`, `link_status_t`.
+- Struct member variables: `snake_case` (no prefix). Example: `read_only`,
+  `battery_voltage_mv`.
 
 ### Functions and Methods
 
-- All free functions and class member functions: `lower_snake_case`.
-- Private methods: `_lower_snake_case` (single leading underscore).
-- Boolean query methods MUST be named as predicates: `is_connected()`,
-  `in_raw_mode()`, not `getConnected()` or `checkRawMode()`.
+- Public methods: `camelCase`. Example: `readMessage()`, `sendMessage()`,
+  `handleMessage()`.
+- Private methods: `_camelCase` (single leading underscore). Example:
+  `_handleParamSet()`, `_sendRadioStatus()`.
+- Free functions: `camelCase`.
 
-### Variables and Parameters
+### Variables
 
-- Local variables and function parameters: `lower_snake_case`.
-- Private member variables: `_lower_snake_case` (single leading underscore).
-- Public member variables (rare — prefer accessors): `lower_snake_case`.
+- Private member variables: `_snake_case`. Examples: `_udp_port`,
+  `_last_status_time`.
+- Local variables and function parameters: `snake_case`.
 
 ### Constants and Macros
 
 - Compile-time constants (`#define`, `constexpr`, `enum` values):
   `UPPER_SNAKE_CASE`.
-- Macros MUST be prefixed with `MAV_` to avoid collisions with ESP-IDF macros.
+- Project-specific macros use a short module prefix where collision risk
+  exists. Example: `WIFI_MODE_AP`, `VERSION_MAJOR`.
+- MAVLink protocol constants (prefixed `MAV_`) come from the MAVLink library
+  and are not renamed.
 
 ### Migration Table (existing non-conformant identifiers)
 
-The items below MUST be renamed as part of the first task in any feature that
-touches the relevant file. Renaming MUST be done in a dedicated refactor commit
-before functional changes.
+File renames, header guard updates, class renames, and struct renames MUST
+be done in a dedicated refactor commit before functional changes.
 
 | Current identifier | Renamed to | Location |
 |---|---|---|
@@ -155,28 +189,19 @@ before functional changes.
 | `mavesp8266_parameters.h/.cpp` | `parameters.h/.cpp` | `src/` |
 | `mavesp8266_httpd.h/.cpp` | `httpd.h/.cpp` | `src/` |
 | `mavesp8266_ppm.h/.cpp` | `ppm.h/.cpp` | `src/` |
-| `MavESP8266Bridge` | `MavBridge` | `bridge.h` |
-| `MavESP8266Component` | `MavComponent` | `component.h` |
-| `MavESP8266GCS` | `MavGcs` | `gcs.h` |
-| `MavESP8266Vehicle` | `MavVehicle` | `vehicle.h` |
-| `stMavEspParameters` | `mav_param_t` | `parameters.h` |
-| `handleMessage()` | `handle_message()` | `MavComponent` |
-| `readMessage()` | `read_message()` | `MavGcs`, `MavVehicle` |
-| `readMessageRaw()` | `read_message_raw()` | `MavGcs`, `MavVehicle` |
-| `sendMessage()` | `send_message()` | `MavBridge` subclasses |
-| `sendMessageRaw()` | `send_message_raw()` | `MavBridge` subclasses |
-| `getStatus()` | `get_status()` | `MavVehicle` |
-| `inRawMode()` | `in_raw_mode()` | `MavComponent` |
-| `resetRawMode()` | `reset_raw_mode()` | `MavComponent` |
-| `_sendStatusMessage()` | `_send_status_message()` | `MavComponent` |
-| `_handleParamSet()` | `_handle_param_set()` | `MavComponent` |
-| `_handleParamRequestList()` | `_handle_param_request_list()` | `MavComponent` |
-| `_handleParamRequestRead()` | `_handle_param_request_read()` | `MavComponent` |
-| `_sendParameter()` | `_send_parameter()` | `MavComponent` |
-| `_handleCmdLong()` | `_handle_cmd_long()` | `MavComponent` |
-| `_sendRadioStatus()` | `_send_radio_status()` | `MavGcs` |
-| `_readMessage()` | `_read_message()` | `MavGcs`, `MavVehicle` |
-| `_sendSingleUdpMessage()` | `_send_single_udp_message()` | `MavGcs` |
+| `MAVESP8266_*` header guards | `*_H` | all renamed headers |
+| `MAVESP8266_VERSION_*` macros | `VERSION_*` | `bridge.h` |
+| `MavESP8266Bridge` | `Bridge` | `bridge.h` |
+| `MavESP8266World` | `World` | `bridge.h` |
+| `MavESP8266Component` | `Component` | `component.h` |
+| `MavESP8266GCS` | `Gcs` | `gcs.h` |
+| `MavESP8266Vehicle` | `Vehicle` | `vehicle.h` |
+| `MavESP8266Parameters` | `Parameters` | `parameters.h` |
+| `MavESP8266Httpd` | `Httpd` | `httpd.h` |
+| `MavESP8266PPM` | `Ppm` | `ppm.h` |
+| `MavESP8266Log` | `Log` | `bridge.h` |
+| `stMavEspParameters` | `parameters_t` | `parameters.h` |
+| `MAVESP_WIFI_MODE_*` | `WIFI_MODE_*` | `parameters.h` |
 
 ## Embedded Hardware Constraints
 
@@ -238,4 +263,4 @@ PRs that omit this statement SHOULD be returned for revision before review.
 runtime guidance and tooling configuration. Use this constitution for governing
 principles that apply to all contributors and all agents equally.
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-19 | **Last Amended**: 2026-04-21
+**Version**: 1.3.0 | **Ratified**: 2026-04-19 | **Last Amended**: 2026-04-21
