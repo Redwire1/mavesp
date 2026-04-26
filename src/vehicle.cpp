@@ -29,16 +29,16 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_vehicle.cpp
+ * @file vehicle.cpp
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_vehicle.h"
-#include "mavesp8266_parameters.h"
-#include "mavesp8266_component.h"
+#include "bridge.h"
+#include "vehicle.h"
+#include "parameters.h"
+#include "component.h"
 
 // Define which serial port to use for MAVLink
 // ESP32: Serial = GPIO43 (TX) / GPIO44 (RX)
@@ -46,7 +46,7 @@
 #define MAVLINK_SERIAL Serial
 
 //---------------------------------------------------------------------------------
-MavESP8266Vehicle::MavESP8266Vehicle()
+Vehicle::Vehicle()
 {
     _recv_chan = MAVLINK_COMM_0;
     _send_chan = MAVLINK_COMM_1;
@@ -55,9 +55,9 @@ MavESP8266Vehicle::MavESP8266Vehicle()
 //---------------------------------------------------------------------------------
 //-- Initialize
 void
-MavESP8266Vehicle::begin(MavESP8266Bridge* forwardTo)
+Vehicle::begin(Bridge* forwardTo)
 {
-    MavESP8266Bridge::begin(forwardTo);
+    Bridge::begin(forwardTo);
     //-- Start UART connected to UAS
 #ifdef ARDUINO_ARCH_ESP32
     // ESP32-S3: Use Serial on GPIO43 (TX) / GPIO44 (RX) - USB Serial/CDC
@@ -80,7 +80,7 @@ MavESP8266Vehicle::begin(MavESP8266Bridge* forwardTo)
 //---------------------------------------------------------------------------------
 //-- Read MavLink message from UAS
 void
-MavESP8266Vehicle::readMessage()
+Vehicle::readMessage()
 {
     if (_readMessage()) {
         _forwardTo->sendMessage(&_msg);
@@ -93,7 +93,7 @@ MavESP8266Vehicle::readMessage()
 }
 
 void
-MavESP8266Vehicle::readMessageRaw() {
+Vehicle::readMessageRaw() {
     char buf[1024];
     int buf_index = 0;
 
@@ -115,7 +115,7 @@ MavESP8266Vehicle::readMessageRaw() {
 //---------------------------------------------------------------------------------
 //-- Send MavLink message to UAS
 int
-MavESP8266Vehicle::sendMessage(mavlink_message_t* message) {
+Vehicle::sendMessage(mavlink_message_t* message) {
     // Translate message to buffer
     char buf[300];
     unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, message);
@@ -130,7 +130,7 @@ MavESP8266Vehicle::sendMessage(mavlink_message_t* message) {
 }
 
 int
-MavESP8266Vehicle::sendMessageRaw(uint8_t *buffer, int len) {
+Vehicle::sendMessageRaw(uint8_t *buffer, int len) {
     MAVLINK_SERIAL.write(buffer, len);
     //Serial.flush();
     return len;
@@ -138,8 +138,8 @@ MavESP8266Vehicle::sendMessageRaw(uint8_t *buffer, int len) {
 
 //---------------------------------------------------------------------------------
 //-- We have some special status to capture when asked for
-linkStatus*
-MavESP8266Vehicle::getStatus()
+link_status_t*
+Vehicle::getStatus()
 {
     _status.queue_status = 0;
     return &_status;
@@ -148,7 +148,7 @@ MavESP8266Vehicle::getStatus()
 //---------------------------------------------------------------------------------
 //-- Read MavLink message from UAS
 bool
-MavESP8266Vehicle::_readMessage()
+Vehicle::_readMessage()
 {
     bool msgReceived = false;
     int16_t avail = MAVLINK_SERIAL.available();
@@ -223,4 +223,3 @@ MavESP8266Vehicle::_readMessage()
     }
     return msgReceived;
 }
-

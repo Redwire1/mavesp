@@ -29,18 +29,18 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266.cpp
- * ESP8266 Wifi AP, MavLink UART/UDP Bridge
+ * @file bridge.cpp
+ * ESP8266/ESP32 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_parameters.h"
+#include "bridge.h"
+#include "parameters.h"
 
 //---------------------------------------------------------------------------------
 //-- Base Comm Link
-MavESP8266Bridge::MavESP8266Bridge()
+Bridge::Bridge()
     : _heard_from(false)
     , _system_id(0)
     , _component_id(0)
@@ -55,7 +55,7 @@ MavESP8266Bridge::MavESP8266Bridge()
 //---------------------------------------------------------------------------------
 //-- Initialize
 void
-MavESP8266Bridge::begin(MavESP8266Bridge* forwardTo)
+Bridge::begin(Bridge* forwardTo)
 {
     _forwardTo  = forwardTo;
 }
@@ -63,7 +63,7 @@ MavESP8266Bridge::begin(MavESP8266Bridge* forwardTo)
 //---------------------------------------------------------------------------------
 //-- Check for link errors
 void
-MavESP8266Bridge::_checkLinkErrors(mavlink_message_t* msg)
+Bridge::_checkLinkErrors(mavlink_message_t* msg)
 {
     //-- Don't bother if we have not heard from the link (and it's the proper sys/comp ids)
     if(!_heard_from || msg->sysid != _system_id || msg->compid != _component_id) {
@@ -82,7 +82,7 @@ MavESP8266Bridge::_checkLinkErrors(mavlink_message_t* msg)
 }
 
 //---------------------------------------------------------------------------------
-MavESP8266Log::MavESP8266Log()
+Log::Log()
     : _buffer(NULL)
     , _buffer_size(0)
     , _log_offset(0)
@@ -93,7 +93,7 @@ MavESP8266Log::MavESP8266Log()
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266Log::begin(size_t bufferSize)
+Log::begin(size_t bufferSize)
 {
     _buffer_size = bufferSize & 0xFFFE;
     _buffer = (char*)malloc(_buffer_size);
@@ -101,7 +101,7 @@ MavESP8266Log::begin(size_t bufferSize)
 
 //---------------------------------------------------------------------------------
 size_t
-MavESP8266Log::log(const char *format, ...) {
+Log::log(const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     char temp[1024];
@@ -127,7 +127,7 @@ MavESP8266Log::log(const char *format, ...) {
 
 //---------------------------------------------------------------------------------
 String
-MavESP8266Log::getLog(uint32_t* pStart, uint32_t* pLen) {
+Log::getLog(uint32_t* pStart, uint32_t* pLen) {
     String buffer;
 
     uint32_t position = *pStart, len = getLogSize();
@@ -162,14 +162,14 @@ MavESP8266Log::getLog(uint32_t* pStart, uint32_t* pLen) {
 
 //---------------------------------------------------------------------------------
 uint32_t
-MavESP8266Log::getLogSize()
+Log::getLogSize()
 {
     return min(_log_position, _buffer_size);
 }
 
 //---------------------------------------------------------------------------------
 uint32_t
-MavESP8266Log::getPosition()
+Log::getPosition()
 {
     return _log_position;
 }
@@ -177,7 +177,7 @@ MavESP8266Log::getPosition()
 /*
   helper to allow non-mavlink pkts to get through
  */
-void MavESP8266Bridge::handle_non_mavlink(uint8_t b, bool msgReceived)
+void Bridge::handle_non_mavlink(uint8_t b, bool msgReceived)
 {
     if (_rxstatus.parse_state > MAVLINK_PARSE_STATE_IDLE &&
         _last_parse_state <= MAVLINK_PARSE_STATE_IDLE &&

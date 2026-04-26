@@ -29,35 +29,29 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_vehicle.h
- * ESP8266 Wifi AP, MavLink UART/UDP Bridge
+ * @file ota.h
+ * OTA update state machine
  *
- * @author Gus Grubba <mavlink@grubba.com>
+ * Single canonical definition of ota_state_t and the OTA update API.
+ * httpd.h includes this header to use the enum.
  */
 
-#ifndef MAVESP8266_VEHICLE_H
-#define MAVESP8266_VEHICLE_H
+#ifndef OTA_H
+#define OTA_H
 
-#include "mavesp8266.h"
+#include <stddef.h>
+#include <stdint.h>
 
-class MavESP8266Vehicle : public MavESP8266Bridge {
-public:
-    MavESP8266Vehicle();
-
-    void    begin           (MavESP8266Bridge* forwardTo);
-    void    readMessage     ();
-    void    readMessageRaw  ();
-    int     sendMessage     (mavlink_message_t* message);
-    int     sendMessageRaw   (uint8_t *buffer, int len);
-    linkStatus* getStatus   ();
-
-private:
-    bool    _readMessage    ();
-    void    _send_pending();
-
-private:
-    unsigned long           _queue_time;
-    mavlink_message_t       _msg;
+enum ota_state_t {
+    OTA_IDLE,
+    OTA_IN_PROGRESS,
+    OTA_COMPLETE,
+    OTA_ERROR
 };
+
+bool            otaBegin    ();
+size_t          otaWrite    (uint8_t* data, size_t len);
+bool            otaEnd      ();
+ota_state_t     otaGetState ();
 
 #endif

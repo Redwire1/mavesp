@@ -29,25 +29,32 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_gcs.h
+ * @file gcs.h
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#ifndef MAVESP8266_GCS_H
-#define MAVESP8266_GCS_H
+#ifndef GCS_H
+#define GCS_H
 
 //-- UDP Outgoing buffer timeout
 #define UDP_QUEUE_TIMEOUT       5 // 5ms
 
-#include "mavesp8266.h"
+#include "bridge.h"
 
-class MavESP8266GCS : public MavESP8266Bridge {
+struct gcs_client_t {
+    IPAddress   addr;
+    uint16_t    port;
+    uint32_t    last_seen_ms;
+    bool        active;
+};
+
+class Gcs : public Bridge {
 public:
-    MavESP8266GCS();
+    Gcs();
 
-    void    begin                   (MavESP8266Bridge* forwardTo, IPAddress gcsIP);
+    void    begin                   (Bridge* forwardTo, IPAddress gcsIP);
     void    readMessage             ();
     void    readMessageRaw          ();
     int     sendMessage             (mavlink_message_t* message);

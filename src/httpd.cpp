@@ -29,17 +29,17 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_httpd.cpp
+ * @file httpd.cpp
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_httpd.h"
-#include "mavesp8266_parameters.h"
-#include "mavesp8266_gcs.h"
-#include "mavesp8266_vehicle.h"
+#include "bridge.h"
+#include "httpd.h"
+#include "parameters.h"
+#include "gcs.h"
+#include "vehicle.h"
 
 #ifdef ARDUINO_ARCH_ESP32
     #include <WebServer.h>
@@ -99,7 +99,7 @@ WebServer           webServer(80);
 #else
 ESP8266WebServer    webServer(80);
 #endif
-MavESP8266Update*   updateCB    = NULL;
+OtaUpdate*          updateCB    = NULL;
 bool                started     = false;
 
 //---------------------------------------------------------------------------------
@@ -204,7 +204,7 @@ void handle_getParameters()
 {
     String message = FPSTR(kHEADER);
     message += "<p>Parameters</p><table><tr><td width=\"240\">Name</td><td>Value</td></tr>";
-    for(int i = 0; i < MavESP8266Parameters::ID_COUNT; i++) {
+    for(int i = 0; i < Parameters::ID_COUNT; i++) {
         message += "<tr><td>";
         message += getWorld()->getParameters()->getAt(i)->id;
         message += "</td>";
@@ -230,7 +230,7 @@ static void handle_root()
     String message = FPSTR(kHEADER);
     message += "Version: ";
     char vstr[30];
-    snprintf(vstr, sizeof(vstr), "%u.%u.%u", MAVESP8266_VERSION_MAJOR, MAVESP8266_VERSION_MINOR, MAVESP8266_VERSION_BUILD);
+    snprintf(vstr, sizeof(vstr), "%u.%u.%u", VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD);
     message += vstr;
     message += "<br>\n";
     message += "Git Version: ";
@@ -274,12 +274,12 @@ static void handle_setup()
 
     message += "WiFi Mode:&nbsp;";
     message += "<input type='radio' name='mode' value='0'";
-    if (getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_AP) {
+    if (getWorld()->getParameters()->getWifiMode() == WIFI_PREF_AP) {
         message += " checked";
     }
     message += ">AccessPoint\n";
     message += "<input type='radio' name='mode' value='1'";
-    if (getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_STA) {
+    if (getWorld()->getParameters()->getWifiMode() == WIFI_PREF_STA) {
         message += " checked";
     }
     message += ">Station<br>\n";
@@ -381,8 +381,8 @@ static void handle_getStatus()
     if(!paramCRC[0]) {
         snprintf(paramCRC, sizeof(paramCRC), "%08X", getWorld()->getParameters()->paramHashCheck());
     }
-    linkStatus* gcsStatus = getWorld()->getGCS()->getStatus();
-    linkStatus* vehicleStatus = getWorld()->getVehicle()->getStatus();
+    link_status_t* gcsStatus = getWorld()->getGCS()->getStatus();
+    link_status_t* vehicleStatus = getWorld()->getVehicle()->getStatus();
     String message = FPSTR(kHEADER);
     message += "<p>Comm Status</p><table><tr><td width=\"240\">Packets Received from GCS</td><td>";
     message += gcsStatus->packets_received;
@@ -502,11 +502,11 @@ void handle_getJSysStatus()
     if(webServer.hasArg("r")) {
         reset = webServer.arg("r").toInt() != 0;
     }
-    linkStatus* gcsStatus = getWorld()->getGCS()->getStatus();
-    linkStatus* vehicleStatus = getWorld()->getVehicle()->getStatus();
+    link_status_t* gcsStatus = getWorld()->getGCS()->getStatus();
+    link_status_t* vehicleStatus = getWorld()->getVehicle()->getStatus();
     if(reset) {
-        memset(gcsStatus,     0, sizeof(linkStatus));
-        memset(vehicleStatus, 0, sizeof(linkStatus));
+        memset(gcsStatus,     0, sizeof(link_status_t));
+        memset(vehicleStatus, 0, sizeof(link_status_t));
     }
     char message[512];
     snprintf(message, 512,
@@ -645,7 +645,7 @@ void handle_notFound(){
 }
 
 //---------------------------------------------------------------------------------
-MavESP8266Httpd::MavESP8266Httpd()
+Httpd::Httpd()
 {
 
 }
@@ -653,7 +653,7 @@ MavESP8266Httpd::MavESP8266Httpd()
 //---------------------------------------------------------------------------------
 //-- Initialize
 void
-MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
+Httpd::begin(OtaUpdate* updateCB_)
 {
     updateCB = updateCB_;
     webServer.on("/",               handle_root);
@@ -674,7 +674,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
 //---------------------------------------------------------------------------------
 //-- Initialize
 void
-MavESP8266Httpd::checkUpdates()
+Httpd::checkUpdates()
 {
     webServer.handleClient();
 }

@@ -29,17 +29,17 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_ppm.cpp
+ * @file ppm.cpp
  * ArduPilot Servo Output to Motor Controller PWM Converter
  *
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_ppm.h"
-#include "mavesp8266_parameters.h"
+#include "bridge.h"
+#include "ppm.h"
+#include "parameters.h"
 
 //---------------------------------------------------------------------------------
-MavESP8266PPM::MavESP8266PPM()
+Ppm::Ppm()
     : _servoValue(1500)
     , _dutyCycle(0)
     , _servoChannel(5)
@@ -50,13 +50,8 @@ MavESP8266PPM::MavESP8266PPM()
 }
 
 //---------------------------------------------------------------------------------
-MavESP8266PPM::~MavESP8266PPM()
-{
-}
-
-//---------------------------------------------------------------------------------
 void
-MavESP8266PPM::begin()
+Ppm::begin()
 {
 #ifdef ARDUINO_ARCH_ESP32
     // Load servo channel from parameters (5-16, default 5)
@@ -86,7 +81,7 @@ MavESP8266PPM::begin()
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266PPM::update()
+Ppm::update()
 {
     if (!_initialized) {
         return;
@@ -101,7 +96,7 @@ MavESP8266PPM::update()
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266PPM::handleServoOutput(const mavlink_message_t* msg)
+Ppm::handleServoOutput(const mavlink_message_t* msg)
 {
     if (!_initialized) {
         return;
@@ -144,22 +139,22 @@ MavESP8266PPM::handleServoOutput(const mavlink_message_t* msg)
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266PPM::_updatePWMOutput()
+Ppm::_updatePWMOutput()
 {
     if (!_signalValid) {
         return;
     }
     
-    // Map servo value (1000-2000us) to duty cycle (0-4095)
+    // Map servo value (1000-2000us) to duty cycle (0-255)
     _dutyCycle = _mapServoValueToDuty(_servoValue);
     
     // Write to LEDC
-    ledcWrite(PWM_CHANNEL, _dutyCycle);
+    ledcWrite(PWM_CHANNEL, (uint32_t)_dutyCycle);
 }
 
 //---------------------------------------------------------------------------------
 void
-MavESP8266PPM::_setFailsafe()
+Ppm::_setFailsafe()
 {
     // Stop motor (0% duty cycle)
     _dutyCycle = 0;
@@ -168,7 +163,7 @@ MavESP8266PPM::_setFailsafe()
 
 //---------------------------------------------------------------------------------
 uint16_t
-MavESP8266PPM::_mapServoValueToDuty(uint16_t servoValue)
+Ppm::_mapServoValueToDuty(uint16_t servoValue)
 {
     // Clamp servo value to valid range
     if (servoValue < SERVO_MIN_PULSE) {
@@ -185,3 +180,8 @@ MavESP8266PPM::_mapServoValueToDuty(uint16_t servoValue)
     return (uint16_t)duty;
 }
 
+//---------------------------------------------------------------------------------
+uint16_t Ppm::getServoValue()   { return _servoValue;  }
+float    Ppm::getDutyCycle()    { return _dutyCycle;   }
+uint8_t  Ppm::getServoChannel() { return _servoChannel;}
+bool     Ppm::isSignalValid()   { return _signalValid; }

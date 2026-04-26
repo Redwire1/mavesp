@@ -29,28 +29,28 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_component.cpp
+ * @file component.cpp
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_component.h"
-#include "mavesp8266_parameters.h"
-#include "mavesp8266_vehicle.h"
-#include "mavesp8266_ppm.h"
+#include "bridge.h"
+#include "component.h"
+#include "parameters.h"
+#include "vehicle.h"
+#include "ppm.h"
 
 const char* kHASH_PARAM = "_HASH_CHECK";
 
 
-MavESP8266Component::MavESP8266Component() {
+Component::Component() {
 
 
 }
 
 bool
-MavESP8266Component::inRawMode() {
+Component::inRawMode() {
   // switch out of raw mode when not needed anymore
   if (_in_raw_mode_time > 0 && millis() > _in_raw_mode_time + 5000) {
     _in_raw_mode = false;
@@ -62,7 +62,7 @@ MavESP8266Component::inRawMode() {
 }
 
 bool
-MavESP8266Component::handleMessage(MavESP8266Bridge* sender, mavlink_message_t* message) {
+Component::handleMessage(Bridge* sender, mavlink_message_t* message) {
 
   //
   //   TODO: These response messages need to be queued up and sent as part of the main loop and not all
@@ -137,13 +137,10 @@ MavESP8266Component::handleMessage(MavESP8266Bridge* sender, mavlink_message_t* 
 }
 
 
-
-
-
 //---------------------------------------------------------------------------------
 //-- Send Debug Message
 void
-MavESP8266Component::_sendStatusMessage(MavESP8266Bridge* sender, uint8_t type, const char* text)
+Component::_sendStatusMessage(Bridge* sender, uint8_t type, const char* text)
 {
     if(!getWorld()->getParameters()->getDebugEnabled() && type == MAV_SEVERITY_DEBUG) {
         return;
@@ -162,18 +159,16 @@ MavESP8266Component::_sendStatusMessage(MavESP8266Bridge* sender, uint8_t type, 
 }
 
 
-
-
 //---------------------------------------------------------------------------------
 //-- Set parameter
 void
-MavESP8266Component::_handleParamSet(MavESP8266Bridge* sender, mavlink_param_set_t* param)
+Component::_handleParamSet(Bridge* sender, mavlink_param_set_t* param)
 {
-    for(int i = 0; i < MavESP8266Parameters::ID_COUNT; i++) {
+    for(int i = 0; i < Parameters::ID_COUNT; i++) {
         //-- Find parameter
         if(strncmp(param->param_id, getWorld()->getParameters()->getAt(i)->id, strlen(getWorld()->getParameters()->getAt(i)->id)) == 0) {
             //-- Skip Read Only
-            if(!getWorld()->getParameters()->getAt(i)->readOnly) {
+            if(!getWorld()->getParameters()->getAt(i)->read_only) {
                 //-- Set new value
                 memcpy(getWorld()->getParameters()->getAt(i)->value, &param->param_value, getWorld()->getParameters()->getAt(i)->length);
             }
@@ -187,9 +182,9 @@ MavESP8266Component::_handleParamSet(MavESP8266Bridge* sender, mavlink_param_set
 //---------------------------------------------------------------------------------
 //-- Handle Parameter Request List
 void
-MavESP8266Component::_handleParamRequestList(MavESP8266Bridge* sender)
+Component::_handleParamRequestList(Bridge* sender)
 {
-    for(int i = 0; i < MavESP8266Parameters::ID_COUNT; i++) {
+    for(int i = 0; i < Parameters::ID_COUNT; i++) {
         _sendParameter(sender, getWorld()->getParameters()->getAt(i)->index);
         delay(0);
     }
@@ -198,9 +193,9 @@ MavESP8266Component::_handleParamRequestList(MavESP8266Bridge* sender)
 //---------------------------------------------------------------------------------
 //-- Handle Parameter Request Read
 void
-MavESP8266Component::_handleParamRequestRead(MavESP8266Bridge* sender, mavlink_param_request_read_t* param)
+Component::_handleParamRequestRead(Bridge* sender, mavlink_param_request_read_t* param)
 {
-    for(int i = 0; i < MavESP8266Parameters::ID_COUNT; i++) {
+    for(int i = 0; i < Parameters::ID_COUNT; i++) {
         //-- Find parameter
         if(param->param_index == getWorld()->getParameters()->getAt(i)->index || strncmp(param->param_id, getWorld()->getParameters()->getAt(i)->id, strlen(getWorld()->getParameters()->getAt(i)->id)) == 0) {
             _sendParameter(sender, getWorld()->getParameters()->getAt(i)->index);
@@ -212,11 +207,11 @@ MavESP8266Component::_handleParamRequestRead(MavESP8266Bridge* sender, mavlink_p
 //---------------------------------------------------------------------------------
 //-- Send Parameter (Index Based)
 void
-MavESP8266Component::_sendParameter(MavESP8266Bridge* sender, uint16_t index)
+Component::_sendParameter(Bridge* sender, uint16_t index)
 {
     //-- Build message
     mavlink_param_value_t msg;
-    msg.param_count = MavESP8266Parameters::ID_COUNT;
+    msg.param_count = Parameters::ID_COUNT;
     msg.param_index = index;
     strncpy(msg.param_id, getWorld()->getParameters()->getAt(index)->id, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
     uint32_t val = 0;
@@ -238,11 +233,11 @@ MavESP8266Component::_sendParameter(MavESP8266Bridge* sender, uint16_t index)
 //---------------------------------------------------------------------------------
 //-- Send Parameter (Raw)
 void
-MavESP8266Component::_sendParameter(MavESP8266Bridge* sender, const char* id, uint32_t value, uint16_t index)
+Component::_sendParameter(Bridge* sender, const char* id, uint32_t value, uint16_t index)
 {
     //-- Build message
     mavlink_param_value_t msg;
-    msg.param_count = MavESP8266Parameters::ID_COUNT;
+    msg.param_count = Parameters::ID_COUNT;
     msg.param_index = index;
     strncpy(msg.param_id, id, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
     memcpy(&msg.param_value, &value, sizeof(uint32_t));
@@ -259,16 +254,10 @@ MavESP8266Component::_sendParameter(MavESP8266Bridge* sender, const char* id, ui
 }
 
 
-
-
-
-
-
-
 //---------------------------------------------------------------------------------
 //-- Handle Commands
 void
-MavESP8266Component::_handleCmdLong(MavESP8266Bridge* sender, mavlink_command_long_t* cmd, uint8_t compID)
+Component::_handleCmdLong(Bridge* sender, mavlink_command_long_t* cmd, uint8_t compID)
 {
     bool reboot = false;
     uint8_t result = MAV_RESULT_UNSUPPORTED;
@@ -325,7 +314,7 @@ MavESP8266Component::_handleCmdLong(MavESP8266Bridge* sender, mavlink_command_lo
 //---------------------------------------------------------------------------------
 //-- Reboot
 void
-MavESP8266Component::_wifiReboot(MavESP8266Bridge* sender)
+Component::_wifiReboot(Bridge* sender)
 {
     _sendStatusMessage(sender, MAV_SEVERITY_NOTICE, "Rebooting WiFi Bridge.");
     delay(50);

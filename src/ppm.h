@@ -29,40 +29,59 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_component.h
+ * @file ppm.h
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#ifndef MAVESP8266_COMPONENT_H
-#define MAVESP8266_COMPONENT_H
+#ifndef PPM_H
+#define PPM_H
 
-#include "mavesp8266.h"
+#include <Arduino.h>
+#include <stdint.h>
 
-class MavESP8266Component {
+//-- PWM output pin (GPIO 14)
+#define PWM_OUTPUT_PIN      14
+#define PWM_FREQ            490
+#define PWM_RESOLUTION      8
+#define PWM_CHANNEL         0
+
+//-- Servo pulse range (microseconds)
+#define SERVO_MIN_PULSE     1000
+#define SERVO_MAX_PULSE     2000
+
+//-- Servo timeout (ms without MAVLink servo output → stop PWM)
+#define SERVO_TIMEOUT_MS    1000
+
+#undef F
+#include <ardupilotmega/mavlink.h>
+
+class Ppm {
 public:
-    MavESP8266Component();
+    Ppm();
 
-    //- Returns true if the component consumed the message
-    bool handleMessage        (MavESP8266Bridge* sender, mavlink_message_t* message);
-    bool inRawMode            ();
-    void resetRawMode         () { _in_raw_mode_time = millis(); }
+    void    begin               ();
+    void    update              ();
+    void    handleServoOutput   (const mavlink_message_t* message);
+
+    uint16_t    getServoValue   ();
+    float       getDutyCycle    ();
+    uint8_t     getServoChannel ();
+    bool        isSignalValid   ();
 
 private:
-    void    _sendStatusMessage      (MavESP8266Bridge* sender, uint8_t type, const char* text);
-    void    _handleParamSet         (MavESP8266Bridge* sender, mavlink_param_set_t* param);
-    void    _handleParamRequestList (MavESP8266Bridge* sender);
-    void    _handleParamRequestRead (MavESP8266Bridge* sender, mavlink_param_request_read_t* param);
-    void    _sendParameter          (MavESP8266Bridge* sender, uint16_t index);
-    void    _sendParameter          (MavESP8266Bridge* sender, const char* id, uint32_t value, uint16_t index);
+    void        _updatePWMOutput    ();
+    void        _setFailsafe        ();
+    uint16_t    _mapServoValueToDuty(uint16_t servoValue);
 
-    void    _handleCmdLong          (MavESP8266Bridge* sender, mavlink_command_long_t* cmd, uint8_t compID);
-
-    void    _wifiReboot             (MavESP8266Bridge* sender);
-
-    bool            _in_raw_mode;
-    unsigned long   _in_raw_mode_time;
+private:
+    uint8_t     _servoChannel;
+    uint16_t    _servoValue;
+    float       _dutyCycle;
+    bool        _signalValid;
+    bool        _initialized;
+    unsigned long _lastServoUpdate;
 };
 
 #endif

@@ -29,19 +29,19 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_gcs.cpp
+ * @file gcs.cpp
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_gcs.h"
-#include "mavesp8266_parameters.h"
-#include "mavesp8266_component.h"
+#include "bridge.h"
+#include "gcs.h"
+#include "parameters.h"
+#include "component.h"
 
 //---------------------------------------------------------------------------------
-MavESP8266GCS::MavESP8266GCS()
+Gcs::Gcs()
     : _udp_port(DEFAULT_UDP_HPORT)
 {
     _recv_chan = MAVLINK_COMM_1;
@@ -52,9 +52,9 @@ MavESP8266GCS::MavESP8266GCS()
 //---------------------------------------------------------------------------------
 //-- Initialize
 void
-MavESP8266GCS::begin(MavESP8266Bridge* forwardTo, IPAddress gcsIP)
+Gcs::begin(Bridge* forwardTo, IPAddress gcsIP)
 {
-    MavESP8266Bridge::begin(forwardTo);
+    Bridge::begin(forwardTo);
     _ip = gcsIP;
     //-- Init variables that shouldn't change unless we reboot
     _udp_port = getWorld()->getParameters()->getWifiUdpHport();
@@ -65,7 +65,7 @@ MavESP8266GCS::begin(MavESP8266Bridge* forwardTo, IPAddress gcsIP)
 //---------------------------------------------------------------------------------
 //-- Read MavLink message from GCS
 void
-MavESP8266GCS::readMessage()
+Gcs::readMessage()
 {
     //-- Read UDP
     if(_readMessage()) {
@@ -89,7 +89,7 @@ MavESP8266GCS::readMessage()
 //---------------------------------------------------------------------------------
 //-- Read MavLink message from GCS
 bool
-MavESP8266GCS::_readMessage()
+Gcs::_readMessage()
 {
     bool msgReceived = false;
     int udp_count = _udp.parsePacket();
@@ -129,7 +129,7 @@ MavESP8266GCS::_readMessage()
                         if(_message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                             //-- We no longer need DHCP
 #ifndef ARDUINO_ARCH_ESP32
-                            if(getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_AP) {
+                            if(getWorld()->getParameters()->getWifiMode() == WIFI_PREF_AP) {
                                 wifi_softap_dhcps_stop();
                             }
 #endif
@@ -177,7 +177,7 @@ MavESP8266GCS::_readMessage()
         if(_heard_from && (millis() - _last_heartbeat) > HEARTBEAT_TIMEOUT) {
             //-- Restart DHCP and start broadcasting again
 #ifndef ARDUINO_ARCH_ESP32
-            if(getWorld()->getParameters()->getWifiMode() == MAVESP_WIFI_MODE_AP) {
+            if(getWorld()->getParameters()->getWifiMode() == WIFI_PREF_AP) {
                 wifi_softap_dhcps_start();
             }
 #endif
@@ -190,7 +190,7 @@ MavESP8266GCS::_readMessage()
 }
 
 void
-MavESP8266GCS::readMessageRaw() {
+Gcs::readMessageRaw() {
     int udp_count = _udp.parsePacket();
     char buf[1024];
     int buf_index = 0;
@@ -219,13 +219,13 @@ MavESP8266GCS::readMessageRaw() {
 //---------------------------------------------------------------------------------
 //-- Forward message to the GCS
 int
-MavESP8266GCS::sendMessage(mavlink_message_t* message) {
+Gcs::sendMessage(mavlink_message_t* message) {
     _sendSingleUdpMessage(message);
     return 1;
 }
 
 int
-MavESP8266GCS::sendMessageRaw(uint8_t *buffer, int len)
+Gcs::sendMessageRaw(uint8_t *buffer, int len)
 {
     _udp.beginPacket(_ip, _udp_port);
     size_t sent = _udp.write(buffer, len);
@@ -236,14 +236,15 @@ MavESP8266GCS::sendMessageRaw(uint8_t *buffer, int len)
 //---------------------------------------------------------------------------------
 //-- Send Radio Status
 void
-MavESP8266GCS::_sendRadioStatus()
+Gcs::_sendRadioStatus()
 {
-    linkStatus* st = _forwardTo->getStatus();
+    link_status_t* st = _forwardTo->getStatus();
     uint8_t rssi = 0;
     uint8_t lostVehicleMessages = 100;
     uint8_t lostGcsMessages = 100;
 
 #ifdef ARDUINO_ARCH_ESP32
+    // NOTE: WiFi.getMode() == WIFI_MODE_STA is the Arduino WiFi enum, NOT our project WIFI_MODE_STA constant
     if(WiFi.getMode() == WIFI_MODE_STA) {
         rssi = (uint8_t)abs(WiFi.RSSI());
     }
@@ -284,7 +285,7 @@ MavESP8266GCS::_sendRadioStatus()
 //---------------------------------------------------------------------------------
 //-- Send UDP Single Message
 void
-MavESP8266GCS::_sendSingleUdpMessage(mavlink_message_t* msg)
+Gcs::_sendSingleUdpMessage(mavlink_message_t* msg)
 {
     // Translate message to buffer
     char buf[300];
@@ -298,18 +299,17 @@ MavESP8266GCS::_sendSingleUdpMessage(mavlink_message_t* msg)
     }
     _packets_queued++;
     _sendbuf_ofs += len;
+    _status.packets_sent++;
 }
 
-/*
-  send pending data in _sendbuf
- */
-void MavESP8266GCS::_send_pending(void)
+//---------------------------------------------------------------------------------
+void
+Gcs::_send_pending()
 {
-    if (_sendbuf_ofs > 0) {
-        if (sendMessageRaw(_sendbuf, _sendbuf_ofs) == _sendbuf_ofs) {
-            _sendbuf_ofs = 0;
-            _status.packets_sent += _packets_queued;
-            _packets_queued = 0;
-        }
-    }
+    _udp.beginPacket(_ip, _udp_port);
+    _udp.write(_sendbuf, _sendbuf_ofs);
+    _udp.endPacket();
+    _sendbuf_ofs = 0;
+    _packets_queued = 0;
+    _status.queue_status = 0;
 }

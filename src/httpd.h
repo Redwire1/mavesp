@@ -29,23 +29,23 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_httpd.h
+ * @file httpd.h
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#ifndef MAVESP8266_HTTPD_H
-#define MAVESP8266_HTTPD_H
+#ifndef HTTPD_H
+#define HTTPD_H
 
-#include "mavesp8266.h"
+#include "bridge.h"
 
-class MavESP8266Httpd {
+class Httpd {
 public:
-    MavESP8266Httpd();
-    void    begin           (MavESP8266Update* updateCB);
+    Httpd();
+
+    void    begin           (OtaUpdate* updateCB);
     void    checkUpdates    ();
 };
 
 #endif
-

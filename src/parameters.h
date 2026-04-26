@@ -29,38 +29,39 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266_parameters.h
+ * @file parameters.h
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#ifndef MAVESP8266_PARAMETERS_H
-#define MAVESP8266_PARAMETERS_H
+#ifndef PARAMETERS_H
+#define PARAMETERS_H
 
-// WiFi mode definitions (custom to avoid conflicts with ESP32 WiFiType.h)
-#define MAVESP_WIFI_MODE_AP 0
-#define MAVESP_WIFI_MODE_STA 1
+// WiFi mode preference constants (stored in EEPROM; 0=AP, 1=STA)
+// Named WIFI_PREF_* to avoid conflict with ESP32 SDK wifi_mode_t enum
+#define WIFI_PREF_AP  0
+#define WIFI_PREF_STA 1
 
 //-- Constants
-#define DEFAULT_WIFI_MODE       MAVESP_WIFI_MODE_AP
+#define DEFAULT_WIFI_MODE       WIFI_PREF_AP
 #define DEFAULT_UART_SPEED      921600
 #define DEFAULT_WIFI_CHANNEL    11
 #define DEFAULT_UDP_HPORT       14550
 #define DEFAULT_UDP_CPORT       14555
 
-struct stMavEspParameters {
+struct parameters_t {
     char        id[MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN];
     void*       value;
     uint16_t    index;
     uint8_t     length;
     uint8_t     type;
-    bool        readOnly;
+    bool        read_only;
 };
 
-class MavESP8266Parameters {
+class Parameters {
 public:
-    MavESP8266Parameters();
+    Parameters();
 
     enum {
         ID_FWVER = 0,
@@ -134,7 +135,7 @@ public:
     void        setPWMServoChannel         (uint8_t channel);
     void        setLocalIPAddress           (uint32_t ipAddress);
 
-    stMavEspParameters* getAt               (int index);
+    parameters_t* getAt                     (int index);
 
 private:
     uint32_t    _crc32part                  (uint8_t* value, uint32_t len, uint32_t crc);

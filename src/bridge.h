@@ -29,14 +29,14 @@
  ****************************************************************************/
 
 /**
- * @file mavesp8266.h
+ * @file bridge.h
  * ESP8266/ESP32 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#ifndef MAVESP8266_H
-#define MAVESP8266_H
+#ifndef BRIDGE_H
+#define BRIDGE_H
 
 #ifdef ARDUINO_ARCH_ESP32
     #include <WiFi.h>
@@ -58,11 +58,11 @@ extern "C" {
 }
 #endif
 
-class MavESP8266Parameters;
-class MavESP8266Component;
-class MavESP8266Vehicle;
-class MavESP8266GCS;
-class MavESP8266PPM;
+class Parameters;
+class Component;
+class Vehicle;
+class Gcs;
+class Ppm;
 
 #define DEFAULT_UART_SPEED          921600
 #define DEFAULT_WIFI_CHANNEL        11
@@ -72,10 +72,10 @@ class MavESP8266PPM;
 #define HEARTBEAT_TIMEOUT           10 * 1000
 
 //-- TODO: This needs to come from the build system
-#define MAVESP8266_VERSION_MAJOR    1
-#define MAVESP8266_VERSION_MINOR    2
-#define MAVESP8266_VERSION_BUILD    3
-#define MAVESP8266_VERSION          ((MAVESP8266_VERSION_MAJOR << 24) & 0xFF00000) | ((MAVESP8266_VERSION_MINOR << 16) & 0x00FF0000) | (MAVESP8266_VERSION_BUILD & 0xFFFF)
+#define VERSION_MAJOR    1
+#define VERSION_MINOR    2
+#define VERSION_BUILD    3
+#define VERSION          ((VERSION_MAJOR << 24) & 0xFF00000) | ((VERSION_MINOR << 16) & 0x00FF0000) | (VERSION_BUILD & 0xFFFF)
 
 //-- Debug sent out to Serial1 (GPIO02), which is TX only (no RX).
 //#define ENABLE_DEBUG
@@ -88,22 +88,25 @@ class MavESP8266PPM;
 
 //---------------------------------------------------------------------------------
 //-- Link Status
-struct linkStatus {
+struct link_status_t {
     uint32_t    packets_received;
     uint32_t    packets_lost;
     uint32_t    packets_sent;
     uint32_t    parse_errors;
     uint32_t    radio_status_sent;
     uint8_t     queue_status;
+    // ⚠️ TEMPORARY BRIDGE FIELDS (Increment 0-2 only, removed in Increment 3 T040)
+    bool        is_armed;           // Set from HEARTBEAT MAV_MODE_FLAG_SAFETY_ARMED
+    uint32_t    last_heartbeat_ms;  // millis() of last HEARTBEAT from vehicle
 };
 
 //---------------------------------------------------------------------------------
 //-- Base Comm Link
-class MavESP8266Bridge {
+class Bridge {
 public:
-    MavESP8266Bridge();
-    virtual ~MavESP8266Bridge(){;}
-    virtual void    begin           (MavESP8266Bridge* forwardTo);
+    Bridge();
+    virtual ~Bridge(){;}
+    virtual void    begin           (Bridge* forwardTo);
     virtual void    readMessage     () = 0;
     virtual void    readMessageRaw  () = 0;
     virtual int     sendMessage     (mavlink_message_t* message) = 0;
@@ -111,7 +114,7 @@ public:
     virtual bool    heardFrom       () { return _heard_from;    }
     virtual uint8_t systemID        () { return _system_id;     }
     virtual uint8_t componentID     () { return _component_id;  }
-    virtual linkStatus* getStatus   () { return &_status;       }
+    virtual link_status_t* getStatus() { return &_status;       }
     mavlink_channel_t       _send_chan;
     mavlink_channel_t       _recv_chan;
 protected:
@@ -122,9 +125,9 @@ protected:
     uint8_t                 _component_id;
     uint8_t                 _seq_expected;
     uint32_t                _last_heartbeat;
-    linkStatus              _status;
+    link_status_t           _status;
     unsigned long           _last_status_time;
-    MavESP8266Bridge*       _forwardTo;
+    Bridge*                 _forwardTo;
     mavlink_status_t        _mav_status;
     mavlink_message_t       _rxmsg;
     mavlink_status_t        _rxstatus;
@@ -137,9 +140,9 @@ protected:
 
 //---------------------------------------------------------------------------------
 //-- Logger
-class MavESP8266Log {
+class Log {
 public:
-    MavESP8266Log   ();
+    Log   ();
     void            begin           (size_t bufferSize); // Allocate a buffer for the log
     size_t          log             (const char *format, ...); // Add to the log
     String          getLog          (uint32_t* pStart, uint32_t* pLen); // Get the log starting at a position
@@ -154,27 +157,27 @@ private:
 
 //---------------------------------------------------------------------------------
 //-- Accessors
-class MavESP8266World {
+class World {
 public:
-    virtual ~MavESP8266World(){;}
-    virtual MavESP8266Parameters*   getParameters   () = 0;
-    virtual MavESP8266Component*    getComponent    () = 0;
-    virtual MavESP8266Vehicle*      getVehicle      () = 0;
-    virtual MavESP8266GCS*          getGCS          () = 0;
-    virtual MavESP8266Log*          getLogger       () = 0;
-    virtual MavESP8266PPM*          getPWM          () = 0;
+    virtual ~World(){;}
+    virtual Parameters* getParameters  () = 0;
+    virtual Component*  getComponent   () = 0;
+    virtual Vehicle*    getVehicle     () = 0;
+    virtual Gcs*        getGCS         () = 0;
+    virtual Log*        getLogger      () = 0;
+    virtual Ppm*        getPWM         () = 0;
 };
 
 //---------------------------------------------------------------------------------
 //-- HTTP Update Status
-class MavESP8266Update {
+class OtaUpdate {
 public:
-    virtual ~MavESP8266Update(){;}
+    virtual ~OtaUpdate(){;}
     virtual void updateStarted  () = 0;
     virtual void updateCompleted() = 0;
     virtual void updateError    () = 0;
 };
 
-extern MavESP8266World* getWorld();
+extern World* getWorld();
 
 #endif
