@@ -1,30 +1,31 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.2.0 → 1.3.0 (MINOR — Naming Conventions section revised again)
+Version change: 1.3.0 → 1.4.1 (MINOR → PATCH amendment: single-level branch hierarchy)
 Ratified:       2026-04-19
-Last Amended:   2026-04-21
+Last Amended:   2026-04-26
 
 Modified sections:
-  - Naming Conventions: Revised to remove all `mav`/`Mav` prefixes from
-    files, classes, and structs. Struct names now use `_t` suffix with
-    snake_case members. Class names use bare PascalCase (e.g. `Bridge`,
-    `Gcs`). File names use no prefix (e.g. `bridge.h`, `gcs.h`).
-  - Migration Table: Updated all "Renamed to" targets to reflect no-prefix
-    convention; `stMavEspParameters` → `parameters_t`.
+  - Git & CI Workflow: New top-level section defining increment branch hierarchy,
+    merge gate (clean build + unit tests + HIL + compliance statement), commit
+    message format, and post-merge tagging convention.
+  - Development Workflow: Removed conflicting `feature/###-short-description`
+    Gitea-issue branch naming. Cross-references the new Git & CI Workflow section.
 
-Spec artifacts updated to match:
-  ✅ specs/001-esp32-companion-computer/data-model.md  — struct/enum names + member names
-  ✅ specs/001-esp32-companion-computer/plan.md        — file tree, migration table, module refs
-  ✅ specs/001-esp32-companion-computer/contracts/http-api.md — struct type refs
-  ✅ specs/001-esp32-companion-computer/research.md    — struct type refs
+Added sections:
+  - ## Git & CI Workflow (new)
 
-Templates checked (no naming-specific content — no updates required):
-  ✅ .specify/templates/plan-template.md
-  ✅ .specify/templates/spec-template.md
-  ✅ .specify/templates/tasks-template.md
+Templates requiring updates:
+  ⚠ .specify/templates/plan-template.md — each Increment heading should include
+    a "Branch" line declaring the concrete branch name (pending manual update)
+  ⚠ specs/001-esp32-companion-computer/plan.md — each Increment 0–4 heading
+    should declare its branch name per the new convention (pending manual update)
 
-Deferred TODOs: none
+Deferred TODOs:
+  - plan-template.md: add "**Branch**: `<feature-id>-increment-N-<slug>`" field
+    to the Increment heading template block.
+  - specs/001-esp32-companion-computer/plan.md: add branch declarations to each
+    of Increment 0–4 headings.
 -->
 
 # ArduPilot ESP32 Webserver Constitution
@@ -220,6 +221,78 @@ MUST be verified at each implementation step:
 - **Flash partitions**: Any change to `partitions.csv` MUST be reviewed for
   impact on OTA update capability and SPIFFS/LittleFS storage.
 
+## Git & CI Workflow
+
+### Branch Strategy
+
+All development uses a single-level branch hierarchy: each increment is
+developed on its own branch and merged directly to `main`.
+
+```
+main
+├── 0-foundation
+├── 1-ota
+├── 2-camera
+├── 3-dashboard
+└── 4-motor
+```
+
+Each increment branch maps one-to-one with an increment defined in `plan.md`.
+The concrete branch name MUST be declared in `plan.md` under its Increment
+heading — the `plan.md` entry is the single source of truth. Branch names MUST
+follow the pattern:
+
+```
+<N>-<slug>
+```
+
+Examples: `0-foundation`, `1-ota`, `2-camera`, `3-dashboard`, `4-motor`.
+
+### Merge Gate
+
+An increment branch MUST NOT be merged to `main` until ALL of the following
+conditions are satisfied:
+
+1. The build produces 0 errors and 0 warnings (`pio run -e esp32s3-cam`).
+2. All PlatformIO native unit tests pass (`pio test -e native`), where
+   applicable to the increment's scope.
+3. All Hardware-in-the-loop (HIL) test criteria defined in `plan.md` for that
+   increment have been executed on physical hardware and pass.
+4. The PR description includes a compliance statement listing the constitution
+   principles verified (e.g. "Principles I, II, V verified").
+
+No merge MAY bypass this gate — not for schedule, not for convenience.
+
+**Rationale**: `main` MUST always represent a state that has been physically
+tested on hardware (Principle III). The safety-critical nature of this firmware
+(Principle I) means an untested merge to `main` creates a hidden risk the next
+time the device is flashed to a vehicle.
+
+### Commit Discipline
+
+- Each commit MUST represent one logical change. WIP or checkpoint commits
+  MUST be squashed before the PR is opened.
+- Commit messages MUST follow the form:
+  `<type>(<scope>): <short description>`
+  where `type` is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+- Example: `feat(ota): add armed-state gate to /upload handler`
+- Force-push to `main` is PROHIBITED at all times. Force-push to an increment
+  branch is permitted before the PR is opened, but PROHIBITED once the PR is open.
+
+### Tagging
+
+After an increment branch is merged and the device has been reflashed and
+verified on hardware, a lightweight tag MUST be created on `main`:
+
+```
+<N>
+```
+
+Example: `1`. Tags mark known-good firmware states that can be
+recovered to if a subsequent increment introduces a regression.
+
+---
+
 ## Development Workflow
 
 Feature development MUST follow the Spec-Driven Development workflow:
@@ -233,9 +306,10 @@ Feature development MUST follow the Spec-Driven Development workflow:
 4. **`/speckit.implement`** — implement with continuous reference to spec and
    plan; do not deviate without updating the spec first.
 
-Each feature branch MUST have a corresponding Gitea issue. Branches MUST be
-named `feature/###-short-description` where `###` matches the Gitea issue
-number. PRs MUST link to their issue and MUST reference the spec artifact.
+Each increment MUST have a corresponding spec artifact under `specs/` and a
+branch declared in `plan.md` per the conventions in the Git & CI Workflow
+section above. PRs MUST reference the spec artifact and include the merge-gate
+compliance statement.
 
 All implementation decisions that deviate from the plan MUST be documented in
 the spec's `Notes` section before the PR is merged — not after.
@@ -263,4 +337,4 @@ PRs that omit this statement SHOULD be returned for revision before review.
 runtime guidance and tooling configuration. Use this constitution for governing
 principles that apply to all contributors and all agents equally.
 
-**Version**: 1.3.0 | **Ratified**: 2026-04-19 | **Last Amended**: 2026-04-21
+**Version**: 1.4.1 | **Ratified**: 2026-04-19 | **Last Amended**: 2026-04-26

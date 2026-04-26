@@ -184,25 +184,6 @@ assets (HTML/CSS/JS files) if those grow beyond PROGMEM capacity.
 
 ---
 
-## 8. LLM Companion API Transport
-
-**Decision**: Expose the companion API as a simple JSON REST interface over
-HTTP/1.1 on the existing port 80 (via AsyncWebServer), behind a shared-secret
-header (`X-Api-Key`). No WebSocket or persistent connection is required for
-Increment 5.
-
-**Rationale**: HTTP GET/POST is the simplest transport compatible with MimiClaw's
-existing `web_search` HTTP tool pattern. It avoids the additional FreeRTOS task
-and memory overhead of a persistent WebSocket connection for what is essentially
-an infrequent query/command pattern. Event push (FR-020) is implemented as an
-outbound HTTP POST from a lightweight FreeRTOS task that wakes on threshold
-crossings; no persistent connection is held open.
-
-**Security**: Pre-shared key stored in NVS, validated on every request in the
-AsyncWebServer request handler before any action is taken. 401 on mismatch.
-
----
-
 ## Summary Table
 
 | Topic | Decision | Key Constraint Satisfied |
@@ -214,4 +195,3 @@ AsyncWebServer request handler before any action is taken. 401 on mismatch.
 | PWM | Existing LEDC PPM module, renamed to `ppm.cpp` | FR-014, FR-015 |
 | FreeRTOS | Core 1 (MAVLink, prio 5) / Core 0 (`cameraStreamTask`, prio 3) | Constitution V |
 | Parameters | NVS via Arduino EEPROM API, `parameters_t`, retained | FR-010, SC-005 |
-| LLM API | HTTP REST + X-Api-Key header | FR-017–FR-022 |

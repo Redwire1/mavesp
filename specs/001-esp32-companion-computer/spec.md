@@ -153,77 +153,6 @@ vehicle integration.
 
 ---
 
-### User Story 5 — LLM Companion Computer Integration Interface (Priority: P5)
-
-A vehicle integrator wants to attach a second dedicated device — a separate
-ESP32-S3 or small embedded Linux board running MimiClaw
-(https://github.com/memovai/mimiclaw) — to the vehicle network alongside this
-companion computer. An operator sends a plain-English message to the MimiClaw
-device via Telegram (e.g. "Set the flight mode to Loiter" or "What is the
-battery voltage?"). The MimiClaw device, acting as an AI reasoning layer,
-interprets the intent, calls a structured API exposed by this companion computer
-to read telemetry or issue a command, and sends the operator a plain-English
-reply via Telegram.
-
-From this companion computer's perspective, MimiClaw is just another client on
-the WiFi network. This companion computer exposes a defined telemetry feed and
-an authenticated command endpoint that any sufficiently capable client — MimiClaw
-or otherwise — can consume. The AI reasoning, Telegram connectivity, and LLM API
-calls all remain the sole responsibility of the MimiClaw device; this companion
-computer never makes LLM API calls or Telegram requests.
-
-This story also covers proactive AI behaviour triggered by this companion
-computer: when a monitored telemetry threshold is crossed (e.g. battery voltage
-falls below a configured value), this companion computer pushes an event
-notification to the MimiClaw device, which can then alert the operator over
-Telegram without polling.
-
-**Why this priority**: Decoupling the AI reasoning from the safety-critical
-MAVLink bridge is an architectural prerequisite of the Safety-First principle
-(Constitution I). Running MimiClaw on this device is not feasible in the near
-term due to ESP-IDF version constraints (MimiClaw requires v5.5+; this project
-uses the PlatformIO Arduino framework on 5.3.x). A two-device architecture
-resolves all resource contention and build system incompatibilities with no
-compromise to P1–P4. This user story is scoped to the interface this companion
-computer exposes, not to the MimiClaw firmware itself.
-
-**Independent Test**: Can be tested with a MimiClaw device (or any HTTP/WebSocket
-client) on the same WiFi network. Success is confirmed when the client can read
-current telemetry values and issue a command (e.g. change a parameter) via the
-exposed API, and the companion computer enforces authentication and command
-allowlisting.
-
-**Acceptance Scenarios**:
-
-1. **Given** a MimiClaw device is connected to the same WiFi network as this
-   companion computer, **When** it sends an authenticated GET request to the
-   telemetry endpoint, **Then** it receives a JSON document containing current
-   vehicle state (battery voltage, armed state, GPS position, link quality,
-   flight mode) within 500 ms.
-2. **Given** a MimiClaw device sends an authenticated POST request with a
-   command from the defined allowlist (e.g. set parameter, request flight mode
-   change), **When** the companion computer processes the request, **Then** the
-   corresponding MAVLink message is forwarded to the autopilot and the response
-   confirms the action was dispatched.
-3. **Given** a command request arrives that is NOT on the allowlist (e.g. raw
-   MAVLink injection), **When** the companion computer evaluates it, **Then** the
-   request is rejected with a clear error and no MAVLink message is sent.
-4. **Given** a request arrives without valid authentication credentials, **When**
-   the companion computer evaluates it, **Then** the request is rejected with a
-   401 response and the event is logged.
-5. **Given** a monitored telemetry threshold is crossed (e.g. battery < 20%),
-   **When** the companion computer detects the condition, **Then** it pushes an
-   event notification to the configured MimiClaw endpoint within 2 seconds.
-6. **Given** the MimiClaw integration endpoint is enabled and all P1–P4 features
-   are active, **When** the telemetry API and event push are both running, **Then**
-   MAVLink forwarding latency remains within the 10 ms budget and free heap
-   remains above 20 KB.
-7. **Given** the MimiClaw integration feature is disabled in configuration,
-   **When** the system boots, **Then** no API endpoint is exposed and no outbound
-   event push connections are attempted.
-
----
-
 ### Edge Cases
 
 - What happens when the autopilot UART is disconnected after boot — does the
@@ -235,12 +164,6 @@ allowlisting.
 - What happens if a firmware OTA upload is interrupted mid-transfer?
 - What happens when the companion computer is the only powered device (autopilot
   off) — does it boot safely without MAVLink input?
-- What happens when the MimiClaw device disconnects mid-command — does the
-  companion computer cancel the in-flight MAVLink command or let it complete?
-- What happens when the MimiClaw device sends commands faster than the autopilot
-  can acknowledge — does the companion computer queue, drop, or reject them?
-- What happens when both a GCS client (P1) and the MimiClaw device (P5) attempt
-  to change the same parameter simultaneously?
 
 ## Requirements *(mandatory)*
 
@@ -279,27 +202,6 @@ allowlisting.
 - **FR-013**: All web forms MUST validate input client-side before submission
   and display plain-English error messages for invalid values.
 
-**LLM Companion Computer Interface (MimiClaw Integration)**
-- **FR-017**: The system MAY expose a JSON telemetry API endpoint (HTTP GET)
-  that returns current vehicle state; this feature MUST be independently
-  enable/disable via a system parameter.
-- **FR-018**: The telemetry API endpoint MUST require authentication (pre-shared
-  key or token) on every request; unauthenticated requests MUST be rejected with
-  a 401 response and logged.
-- **FR-019**: The system MAY accept authenticated command requests (HTTP POST)
-  from a MimiClaw companion device; only commands on a configurable allowlist
-  (initially: set parameter, request mode change) MUST be accepted; all others
-  MUST be rejected.
-- **FR-020**: The system MAY push event notifications (HTTP POST or WebSocket
-  frame) to a configurable MimiClaw device endpoint when a monitored telemetry
-  threshold is crossed; the threshold values and target endpoint MUST be
-  configurable system parameters.
-- **FR-021**: The LLM companion interface MUST NOT impact P1–P4 performance
-  budgets when active; if heap or CPU headroom is insufficient, this feature
-  MUST be the first service shed.
-- **FR-022**: The API shared secret MUST be stored in non-volatile memory and
-  MUST NOT be transmitted over MAVLink or displayed in the web interface.
-
 **Motor Driver**
 - **FR-014**: The system MUST optionally generate a 490 Hz PWM signal on a
   configurable GPIO pin, with duty cycle derived from a configurable
@@ -323,12 +225,6 @@ allowlisting.
   delivered to web clients as part of a multipart MJPEG stream.
 - **PWM Output**: A digital signal at a fixed frequency with variable duty
   cycle, generated on a GPIO pin to drive the motor controller.
-- **LLM Companion Device**: A separate hardware device (ESP32-S3 or embedded
-  Linux board) running MimiClaw firmware; connects to this companion computer
-  over WiFi to read telemetry and issue commands via the integration API.
-- **Command Allowlist**: A configurable set of permitted command types that the
-  companion computer will accept from the LLM companion device and translate
-  into MAVLink messages; commands not on the list are unconditionally rejected.
 
 ## Success Criteria *(mandatory)*
 
@@ -362,19 +258,9 @@ allowlisting.
 - The WiFi access point mode is the primary operating mode; station (STA) mode
   is available as a configurable option but is not required for the initial
   implementation.
-- Camera streaming uses MJPEG over HTTP; RTSP and other streaming protocols are
-  out of scope for this feature.
+- Camera streaming uses RTSP.
 - Still image capture is out of scope. QGroundControl handles snapshot capture
   via its own GCS interface; the companion computer provides live streaming only.
-- The LLM companion integration is a two-device architecture: this companion
-  computer exposes an API; a separate MimiClaw device consumes it. This
-  companion computer never runs MimiClaw firmware, makes LLM API calls, or
-  connects to Telegram directly.
-- The MimiClaw device may be any hardware capable of running MimiClaw firmware
-  (ESP32-S3 with 16 MB flash and 8 MB PSRAM, or a small embedded Linux board);
-  the choice of hardware for that device is outside the scope of this feature.
-- The integration API transport is HTTP over the existing WiFi network; a
-  dedicated hardware serial link between the two devices is not required.
 - The ZS-X11H motor driver integration targets a single motor output channel;
   multi-channel PWM output is out of scope.
 - OTA updates use the ESP32 built-in update mechanism; a working WiFi connection

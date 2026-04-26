@@ -10,29 +10,6 @@ is involved. Endpoints introduced in each increment are noted.
 
 ---
 
-## Authentication
-
-### Public endpoints (no auth required)
-All endpoints EXCEPT those under `/api/v1/` are public. They are accessible to
-any device on the WiFi network.
-
-### LLM API endpoints (X-Api-Key required)
-Endpoints under `/api/v1/` require the header:
-```
-X-Api-Key: <configured-secret>
-```
-Requests missing this header or with an incorrect value receive:
-```
-HTTP 401 Unauthorized
-Content-Type: text/plain
-
-Unauthorized
-```
-The rejection event is logged to `link_status_t` but NOT broadcast via
-MAVLink.
-
----
-
 ## Web Interface Endpoints (Increment 1–3)
 
 ### GET /
@@ -146,6 +123,28 @@ Content-Type: text/plain
 Disarm vehicle before updating firmware
 ```
 
+### POST /uploadfs
+**Increment**: 3
+**Description**: Receives a LittleFS filesystem image (`.littlefs.bin`) and
+flashes it to the SPIFFS/LittleFS OTA partition using `Update.begin(size, U_SPIFFS)`.
+Does NOT require the vehicle to be disarmed (filesystem content is not
+safety-critical). Does NOT reboot on success — the updated files are
+immediately accessible via LittleFS.
+```
+Request:
+Content-Type: multipart/form-data; boundary=...
+[LittleFS .littlefs.bin image]
+
+Response (success): 200 OK
+Content-Type: text/plain
+OK
+```
+```
+Response (update error): 200 OK
+Content-Type: text/plain
+FAIL
+```
+
 ---
 
 ## Camera Streaming (Increment 2)
@@ -197,144 +196,13 @@ Camera not available
 
 ---
 
-## LLM Companion API (Increment 5)
-
-All endpoints under `/api/v1/` require `X-Api-Key` header (see Authentication).
-These endpoints are only active when `LLM_API_ENABLED = 1`.
-
-If `LLM_API_ENABLED = 0`:
-```
-Response: 404 Not Found
-```
-
-### GET /api/v1/telemetry
-**Description**: Returns current vehicle telemetry state as JSON.
-
-The JSON fields correspond to members of `telemetry_state_t` and
-`link_status_t`.
-
-```
-Request:
-GET /api/v1/telemetry HTTP/1.1
-X-Api-Key: <secret>
-```
-```
-Response: 200 OK
-Content-Type: application/json
-
-{
-  "armed": false,
-  "battery_voltage_mv": 12400,
-  "battery_remaining_pct": 72,
-  "gps_fix_type": 3,
-  "gps_satellites": 9,
-  "lat": -337654321,
-  "lon": 1510123456,
-  "alt_mm": 52000,
-  "heading_deg": 245.3,
-  "groundspeed_ms": 0.0,
-  "system_status": 3,
-  "link_quality": {
-    "packets_received": 12340,
-    "parse_errors": 0,
-    "uptime_ms": 86400000
-  }
-}
-```
-
-### POST /api/v1/command
-**Description**: Sends an allowlisted command to the autopilot via MAVLink.
-
-```
-Request:
-POST /api/v1/command HTTP/1.1
-X-Api-Key: <secret>
-Content-Type: application/json
-
-{
-  "type": "SET_PARAMETER",
-  "param_id": "UART_BAUDRATE",
-  "param_value": 115200
-}
-```
-```
-Response (success): 202 Accepted
-Content-Type: application/json
-
-{
-  "status": "dispatched",
-  "type": "SET_PARAMETER",
-  "param_id": "UART_BAUDRATE"
-}
-```
-```
-Response (not on allowlist): 400 Bad Request
-Content-Type: application/json
-
-{
-  "error": "command_not_allowed",
-  "message": "Command type 'RAW_MAVLINK' is not permitted"
-}
-```
-```
-Response (invalid param): 422 Unprocessable Entity
-Content-Type: application/json
-
-{
-  "error": "invalid_value",
-  "message": "UART_BAUDRATE value 9999 is out of range"
-}
-```
-```
-Response (read-only param): 422 Unprocessable Entity
-Content-Type: application/json
-
-{
-  "error": "read_only",
-  "message": "Parameter SYS_STATUS is read-only"
-}
-```
-
-The request body maps to an `llm_cmd_t` struct after validation.
-
-**Supported command types**:
-| `type` value | MAVLink action |
-|---|---|
-| `"SET_PARAMETER"` | `PARAM_SET` message to autopilot |
-| `"REQUEST_MODE"` | `COMMAND_LONG (MAV_CMD_DO_SET_MODE)` to autopilot |
-
-All other `type` values return 400.
-
-### POST /api/v1/event (inbound from MimiClaw — NOT served by this device)
-> This endpoint is on the **MimiClaw device**, not this companion computer.
-> This companion computer POSTs to `LLM_PUSH_URL` with the payload below when
-> a threshold event fires.
-
-**Outbound event push payload**:
-```json
-POST <LLM_PUSH_URL>
-Content-Type: application/json
-
-{
-  "event": "BATTERY_LOW",
-  "battery_remaining_pct": 18,
-  "timestamp_ms": 86412000,
-  "message": "Battery at 18% — consider returning to home"
-}
-```
-
----
-
 ## Error Response Conventions
 
 | Code | Meaning |
 |---|---|
 | 200 OK | Request succeeded |
-| 202 Accepted | Command dispatched to autopilot (not yet ACKed) |
 | 302 Found | Redirect |
-| 400 Bad Request | Invalid parameter name, value, or command type |
-| 401 Unauthorized | Missing or incorrect X-Api-Key |
-| 404 Not Found | Endpoint not found or LLM API disabled |
+| 400 Bad Request | Invalid parameter name or value |
+| 404 Not Found | Endpoint not found |
 | 409 Conflict | OTA refused (vehicle armed) |
-| 422 Unprocessable Entity | Structurally valid but logically invalid request |
 | 503 Service Unavailable | Camera absent or bridge not initialised |

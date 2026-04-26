@@ -50,18 +50,13 @@ struct parameters_t {
 | `PWM_ENABLED` | UINT8 | 0 | 0 = disabled, 1 = enabled |
 | `PWM_SERVO_CHAN` | UINT8 | 5 | SERVO_OUTPUT_RAW channel number |
 | `PWM_GPIO` | UINT8 | 14 | GPIO pin for PWM output |
-| `LLM_API_ENABLED` | UINT8 | 0 | 0 = disabled, 1 = enabled |
-| `LLM_API_SECRET` | CHAR[64] | `""` | X-Api-Key pre-shared secret (write-only display) |
-| `LLM_PUSH_URL` | CHAR[128] | `""` | Target URL for outbound event push |
-| `LLM_THRESH_BATT` | UINT8 | 20 | Battery % threshold for event push |
-
 ---
 
 ## telemetry_state_t
 
 **Purpose**: In-memory snapshot of the current vehicle state derived from
 received MAVLink messages. Updated by the MAVLink bridge on every relevant
-message. Read by the web interface and the LLM companion API. Not persisted.
+message. Read by the web interface. Not persisted.
 
 **Defined in**: `src/telemetry.h`
 
@@ -105,7 +100,7 @@ struct telemetry_state_t {
 ## link_status_t
 
 **Purpose**: Running packet counters for the MAVLink bridge. Shown in the web
-status page and LLM telemetry API.
+status page.
 
 **Defined in**: `src/bridge.h`
 
@@ -119,8 +114,20 @@ struct link_status_t {
     uint32_t    gcs_parse_errors;
     uint32_t    uptime_ms;
     uint32_t    free_heap_bytes;    // Sampled every 60 s
+
+    // ⚠️ TEMPORARY BRIDGE FIELDS (Phase 2–3 only)
+    // Added in T005 (Increment 0) to provide armed-state for the OTA gate
+    // before telemetry.h exists. Removed in T040 (Increment 3) when
+    // telemetryIsArmed() / telemetry_state_t become the authoritative source.
+    bool        is_armed;           // Set from HEARTBEAT MAV_MODE_FLAG_SAFETY_ARMED
+    uint32_t    last_heartbeat_ms;  // millis() of last HEARTBEAT from vehicle
 };
 ```
+
+**Lifecycle of temporary bridge fields**:
+- `is_armed` and `last_heartbeat_ms` are set in `vehicle.cpp` from Phase 2 onward (T018).
+- The OTA gate (`httpd.cpp`, T019) and `/getstatus` response (T021) read `is_armed` from this struct in Phases 3–4.
+- In Phase 5, T040 calls `telemetryUpdate()` for every MAVLink message and T041 migrates `httpd.cpp` to read from `telemetryIsArmed()` instead. At that point these two fields are dead code and MUST be removed from the struct.
 
 ---
 
@@ -169,7 +176,7 @@ struct camera_config_t {
 
 **Purpose**: Tracks the state of an in-progress OTA firmware update.
 
-**Defined in**: `src/httpd.h` (used only within the HTTP upload handler)
+**Defined in**: `src/ota.h` (included by `httpd.h` via `#include "ota.h"`)
 
 ```cpp
 enum ota_state_t : uint8_t {
@@ -188,60 +195,3 @@ OTA_IN_PROGRESS → OTA_ERROR     (write error or armed check fails)
 OTA_COMPLETE → (reboot)
 OTA_ERROR → OTA_IDLE            (next request resets state)
 ```
-
----
-
-## llm_cmd_t
-
-**Purpose**: Represents a validated, authenticated command received from the LLM
-companion device (P5). Only created after allowlist validation.
-
-**Defined in**: `src/llm_api.h`
-
-```cpp
-enum llm_cmd_type_t : uint8_t {
-    LLM_CMD_SET_PARAMETER,   // MAVLink PARAM_SET
-    LLM_CMD_REQUEST_MODE,    // MAVLink SET_MODE / COMMAND_LONG DO_SET_MODE
-};
-
-struct llm_cmd_t {
-    llm_cmd_type_t  type;
-    char            param_id[16];   // For LLM_CMD_SET_PARAMETER
-    float           param_value;    // For LLM_CMD_SET_PARAMETER
-    uint32_t        mode_value;     // For LLM_CMD_REQUEST_MODE (ArduPilot custom_mode)
-};
-```
-
-**Validation rules**:
-- `type` must be in the allowlist; other values cause a 400 rejection.
-- `param_id` must match a known `parameters_t` entry that is not `read_only`.
-- `param_value` must be within the valid range for the parameter type.
-- `LLM_CMD_REQUEST_MODE` only accepted when vehicle is not actively flying
-  (reserved for future enforcement; initially accepted in any state).
-
----
-
-## llm_event_t
-
-**Purpose**: An outbound event notification pushed to the MimiClaw device when a
-monitored telemetry threshold is crossed.
-
-**Defined in**: `src/llm_api.h`
-
-```cpp
-enum llm_event_type_t : uint8_t {
-    LLM_EVENT_BATTERY_LOW,    // battery_remaining < LLM_THRESH_BATT
-    LLM_EVENT_LINK_LOST,      // no HEARTBEAT for > 10 s
-    LLM_EVENT_LINK_RESTORED,  // HEARTBEAT resumed after link-lost state
-};
-
-struct llm_event_t {
-    llm_event_type_t    type;
-    uint32_t            timestamp_ms;
-    char                message[128];  // Human-readable description for Telegram
-};
-```
-
-**Push behaviour**: Pushed as HTTP POST to `LLM_PUSH_URL` with JSON body.
-One push per threshold crossing — not repeated until the condition clears and
-re-triggers. Uses a static buffer; no heap allocation.

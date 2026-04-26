@@ -10,8 +10,7 @@
 Transform the existing `mavesp8266`-based MAVLink WiFi bridge into a fully
 featured ESP32-S3 companion computer. The device acts as a transparent
 MAVLink bridge (vehicle UART ↔ GCS UDP), exposes a web interface for OTA
-firmware updates and parameter management, streams live camera video, and
-provides a REST API for an LLM companion device (MimiClaw).
+firmware updates and parameter management, and streams live camera video.
 
 **Priority**: OTA update capability is present in the first deployable increment
 so that all subsequent development can be deployed remotely without physical
@@ -41,14 +40,13 @@ web API responses < 500 ms; MJPEG stream ≥ 10 fps at SVGA over WiFi
 **Constraints**: 512 KB SRAM (camera frame buffers must use PSRAM);
 FreeRTOS task model; Arduino `loop()` on Core 1 for MAVLink;
 OTA refused while vehicle is armed; no internet access assumed
-**Scale/Scope**: Single embedded device, single GCS client, single LLM companion
-client (MimiClaw on a separate ESP32)
+**Scale/Scope**: Single embedded device, single GCS client
 
 ---
 
 ## Constitution Check
 
-*Constitution version 1.1.0 — evaluated before Phase 0 research and
+*Constitution version 1.4.0 — evaluated before Phase 0 research and
 re-evaluated after Phase 1 design.*
 
 | Principle | Requirement | Status | Notes |
@@ -58,7 +56,7 @@ re-evaluated after Phase 1 design.*
 | II — Code Quality | No runtime heap allocation after init | ⚠️ EXCEPTION | Camera frame buffers (PSRAM only) allocated per-frame — see Complexity Tracking |
 | II — Code Quality | Naming convention enforced | ✅ PASS | All identifiers renamed per constitution in Increment 0 before functional changes |
 | III — Test Before Change | Each increment has documented test criteria | ✅ PASS | Test criteria listed per increment below |
-| IV — One Concern Per File | New modules separated by concern | ✅ PASS | `ota`, `camera`, `telemetry`, `llm_api` each have a single concern |
+| IV — One Concern Per File | New modules separated by concern | ✅ PASS | `ota`, `camera`, `telemetry` each have a single concern |
 | V — Performance Budget | Camera stream must not degrade MAVLink < 10 ms | ✅ PASS | Camera task Core 0 prio 3; MAVLink loop Core 1 prio 5 |
 
 **Post-design re-check**: All gates pass. One justified exception documented below.
@@ -95,8 +93,7 @@ src/
 ├── crc.h                   # Unchanged
 ├── camera.h/.cpp           # NEW Increment 2 — camera init + MJPEG/RTSP stream
 ├── telemetry.h/.cpp        # NEW Increment 3 — telemetry_state_t aggregation
-├── ota.h/.cpp              # NEW Increment 1 — OTA gate + boot confirmation
-└── llm_api.h/.cpp          # NEW Increment 5 — REST API for LLM companion
+└── ota.h/.cpp              # NEW Increment 1 — OTA gate + boot confirmation
 ```
 
 **Structure Decision**: Single-project embedded firmware. Source files in `src/`
@@ -123,6 +120,8 @@ remains manageable.
 
 ### Increment 0 — Foundation (NOT deployable — local rename only)
 
+**Branch**: `0-foundation`
+
 **Goal**: Rename all files and class identifiers per the constitution Naming
 Conventions. Zero functional changes. Verify the build succeeds.
 
@@ -138,10 +137,12 @@ Conventions. Zero functional changes. Verify the build succeeds.
 | `mavesp8266_httpd.h/.cpp` | `httpd.h/.cpp` | `MavESP8266Httpd` | `Httpd` |
 | `mavesp8266_ppm.h/.cpp` | `ppm.h/.cpp` | `MavESP8266PPM` | `Ppm` |
 
-Also rename `MavESP8266Log` → `Log`, update all header guards
-(`MAVESP8266_*_H` → `*_H`), update all `#include` directives and
-`main.cpp` references. Method and member names are already conformant —
-no function renames are required.
+Also rename `MavESP8266Log` → `Log`, `MavESP8266Update` → `OtaUpdate`
+(`OtaUpdate` chosen to avoid collision with Arduino's `Update` class),
+`MavESP8266UpdateImp` (in `main.cpp`) → `OtaUpdateImp`, update all
+header guards (`MAVESP8266_*_H` → `*_H`), update all `#include`
+directives and `main.cpp` references. Method and member names are
+already conformant — no function renames are required.
 
 **Test criteria (Increment 0)**:
 - `pio run -e esp32s3-cam` compiles with 0 errors, 0 warnings
@@ -150,6 +151,8 @@ no function renames are required.
 ---
 
 ### Increment 1 — Deployable MVP: MAVLink Bridge + OTA
+
+**Branch**: `1-ota`
 
 **Goal**: First build flashed physically to the device. After this, all further
 work is deployed via OTA.
@@ -169,9 +172,9 @@ work is deployed via OTA.
    - Progress tracking on upload form
    - `GET /getstatus`: add `is_armed` field to JSON
 
-3. **`parameters.cpp`**: Add `LLM_API_ENABLED`, `LLM_API_SECRET`, `LLM_PUSH_URL`,
-   `LLM_THRESH_BATT`, `CAM_RESOLUTION`, `CAM_QUALITY`, `PWM_ENABLED` (all
-   disabled; NVS space reserved for future increments)
+3. **`parameters.cpp`**: Add `CAM_RESOLUTION`, `CAM_QUALITY`, `PWM_ENABLED`,
+   `PWM_SERVO_CHAN`, `PWM_GPIO` (all disabled; NVS space reserved for future
+   increments)
 
 4. **MAVLink bridge** (verify after rename): UART2 at 921600 baud GPIO17/18;
    UDP port 14550 (in), 14555 (out); param get/set/request_list; heartbeat;
@@ -189,6 +192,8 @@ work is deployed via OTA.
 ---
 
 ### Increment 2 — Camera Streaming (OTA push)
+
+**Branch**: `2-camera`
 
 **Goal**: Add live camera video stream compatible with QGroundControl and
 directly viewable in a browser.
@@ -244,6 +249,8 @@ URL = `rtsp://<device-ip>:554/mjpeg/1`.
 
 ### Increment 3 — Web Telemetry Dashboard (OTA push)
 
+**Branch**: `3-dashboard`
+
 **Goal**: Full web dashboard with live telemetry and parameter management UI.
 
 **Scope**:
@@ -268,6 +275,8 @@ URL = `rtsp://<device-ip>:554/mjpeg/1`.
 
 ### Increment 4 — Motor Driver Integration (OTA push)
 
+**Branch**: `4-motor`
+
 **Goal**: Integrate and verify the PPM/PWM motor driver module.
 
 **Scope**: `ppm.cpp` cleanup; verify `SERVO_OUTPUT_RAW` channel routing;
@@ -277,35 +286,6 @@ test failsafe (0% PWM on MAVLink loss > 1 s); add `PWM_ENABLED` parameter gate.
 - Motor responds to `SERVO_OUTPUT_RAW` with correct PWM duty
 - Failsafe triggers when UART disconnected > 1 s
 - `PWM_ENABLED = 0` does not init LEDC peripheral
-
----
-
-### Increment 5 — LLM Companion API (OTA push)
-
-**Goal**: Expose authenticated REST API for the MimiClaw LLM companion device.
-
-**Scope**:
-
-1. **`llm_api.h/.cpp`** (new):
-   - Registers AsyncWebServer handlers for `/api/v1/telemetry` and
-     `/api/v1/command`
-   - `X-Api-Key` validated with constant-time comparison before any handler runs
-   - Command allowlist: `SET_PARAMETER`, `REQUEST_MODE`
-   - Outbound event push task (Core 0, prio 2): checks thresholds every 5 s;
-     POSTs `llm_event_t` JSON to `LLM_PUSH_URL`; de-bounced per threshold crossing
-   - All responses use static JSON buffers — no heap allocation
-
-2. **Security controls**:
-   - `memcmp`-based key comparison (no early-exit timing leak)
-   - No string interpolation into MAVLink payload
-   - All `/api/v1/` return 404 when `LLM_API_ENABLED = 0`
-
-**Test criteria (Increment 5)**:
-- `/api/v1/telemetry` returns correct vehicle state with valid key; 401 on wrong key
-- `POST /api/v1/command` with `SET_PARAMETER` updates parameter value
-- Unknown command type returns 400; read-only param returns 422
-- Event push fires once on battery threshold crossing; does not re-fire until
-  battery recovers and re-crosses
 
 ---
 
