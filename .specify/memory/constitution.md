@@ -1,0 +1,340 @@
+<!--
+SYNC IMPACT REPORT
+==================
+Version change: 1.3.0 → 1.4.1 (MINOR → PATCH amendment: single-level branch hierarchy)
+Ratified:       2026-04-19
+Last Amended:   2026-04-26
+
+Modified sections:
+  - Git & CI Workflow: New top-level section defining increment branch hierarchy,
+    merge gate (clean build + unit tests + HIL + compliance statement), commit
+    message format, and post-merge tagging convention.
+  - Development Workflow: Removed conflicting `feature/###-short-description`
+    Gitea-issue branch naming. Cross-references the new Git & CI Workflow section.
+
+Added sections:
+  - ## Git & CI Workflow (new)
+
+Templates requiring updates:
+  ⚠ .specify/templates/plan-template.md — each Increment heading should include
+    a "Branch" line declaring the concrete branch name (pending manual update)
+  ⚠ specs/001-esp32-companion-computer/plan.md — each Increment 0–4 heading
+    should declare its branch name per the new convention (pending manual update)
+
+Deferred TODOs:
+  - plan-template.md: add "**Branch**: `<feature-id>-increment-N-<slug>`" field
+    to the Increment heading template block.
+  - specs/001-esp32-companion-computer/plan.md: add branch declarations to each
+    of Increment 0–4 headings.
+-->
+
+# ArduPilot ESP32 Webserver Constitution
+
+## Core Principles
+
+### I. Safety-First (NON-NEGOTIABLE)
+
+No change to the MAVLink bridge, UART communication, or UDP forwarding logic may
+be merged unless it has been verified to maintain transparent, lossless message
+routing between the autopilot and ground control station. The bridge MUST remain
+a passive relay — it MUST NOT alter, suppress, reorder, or inject MAVLink
+messages without an explicit, documented, user-configurable reason. Any feature
+that risks interrupting vehicle communication during flight MUST include a
+hardware-tested verification step before merge.
+
+**Rationale**: This firmware runs on a drone communication link. Failures are not
+abstract — they can result in loss of vehicle control. Safety constraints
+override convenience, schedule, and all other principles.
+
+### II. Code Quality & Embedded Discipline
+
+All C++ code MUST follow these non-negotiable embedded practices:
+
+- Dynamic memory allocation (`new`, `malloc`, `String`) is PROHIBITED in any
+  code path that executes at runtime after initialisation (setup loop excepted).
+- Stack usage in ISR and RTOS task contexts MUST be bounded and documented.
+- All public API functions MUST have a single, clearly documented return
+  convention (error code, bool, or void — not mixed).
+- Magic numbers MUST be replaced with named constants; all constants MUST be
+  defined in the relevant header, not inline.
+
+**Rationale**: ESP32-S3 has 512 KB SRAM (plus PSRAM). Heap fragmentation in
+long-running embedded systems causes silent failures hours after deployment.
+
+### III. Test Before Change
+
+Every code change that modifies MAVLink parsing, HTTP endpoint behaviour,
+parameter read/write, or PPM/PWM signal processing MUST be accompanied by a
+verifiable test. Acceptable test forms in priority order:
+
+1. Hardware-in-the-loop (HIL) test on physical ESP32-S3-CAM with a MAVLink
+   simulator or real autopilot.
+2. PlatformIO native unit test (`test/` directory) for pure-logic functions
+   (parsing, CRC, parameter encoding).
+3. Documented manual test procedure in the PR description covering the specific
+   changed code path.
+
+No new HTTP endpoint or MAVLink message handler MUST be shipped without at least
+one acceptance scenario documented and executed.
+
+**Rationale**: The hardware-dependent nature of this project makes automated
+testing harder than typical software, but the safety stakes make testing more
+important, not less.
+
+### IV. Web UX Consistency
+
+All web interface additions and changes MUST conform to:
+
+- Consistent status indicator conventions: green = nominal, amber = degraded,
+  red = fault — applied uniformly across all pages and widgets.
+- All user-facing parameter names MUST match the MAVLink parameter IDs exactly
+  (no aliases or renames in the UI layer).
+- Response times: any web page or API endpoint that takes longer than 500 ms to
+  respond MUST display a loading indicator; endpoints MUST NOT block the main
+  loop for longer than 50 ms (use async or chunked responses).
+- All web forms MUST validate input client-side and provide clear, plain-English
+  error messages before submitting to the device.
+- The web interface MUST remain functional when accessed from Mission Planner's
+  embedded browser, QGroundControl, and a standard mobile browser.
+
+**Rationale**: The web interface is used in the field, often on mobile devices
+under time pressure. Inconsistency and unclear status indicators cause operator
+error.
+
+### V. Performance Budget
+
+The following resource budgets are HARD LIMITS — exceeding them requires a
+documented exception signed off before merge:
+
+| Resource | Budget | Measurement method |
+|---|---|---|
+| MAVLink UART baud rate | 921600 baud sustained | Serial monitor, no packet loss at full rate |
+| UDP forwarding latency | < 10 ms end-to-end | Wireshark capture during HIL test |
+| Web server response time | < 500 ms for any endpoint | Browser DevTools network tab |
+| Free heap at steady state | > 20 KB | `ESP.getFreeHeap()` logged every 60 s |
+| Firmware binary size | < 1.5 MB | PlatformIO build output |
+| WiFi AP connection time | < 5 s from power-on | Manual timing with stopwatch |
+
+The MAVLink bridge loop MUST NOT be blocked by HTTP request handling. Web server
+tasks MUST run at lower FreeRTOS priority than the MAVLink forwarding task.
+
+**Rationale**: This device operates in real-time field conditions. Performance
+regressions are not caught in the office — they manifest as dropped MAVLink
+packets during flight.
+
+## Naming Conventions
+
+All identifiers introduced by this project MUST follow the rules below.
+The migration table at the end of this section is authoritative.
+
+### Files
+
+- Source files use no project prefix: `<module>.h` / `<module>.cpp`.
+  The legacy `mavesp8266_` prefix is removed entirely (e.g.
+  `mavesp8266_gcs.h` → `gcs.h`).
+- The root bridge module is named `bridge.h/.cpp` (was `mavesp8266.h/.cpp`).
+- Header guards: `<MODULE>_H` matching the filename, e.g. `gcs.h`
+  → `#ifndef GCS_H`.
+- Exception: `main.cpp` retains its name (Arduino/PlatformIO entry-point
+  requirement). Library files under `lib/` that are vendored third-party code
+  are exempt from renaming.
+
+### Classes
+
+- Class names: `PascalCase`, no project prefix.
+  The legacy verbose prefix `MavESP8266` is removed.
+  Examples: `Bridge`, `Gcs`, `Vehicle`, `Component`, `Httpd`,
+  `Parameters`, `Ppm`.
+
+### Structs
+
+- Struct names: `snake_case_t` suffix. Example: `parameters_t`,
+  `telemetry_state_t`, `link_status_t`.
+- Struct member variables: `snake_case` (no prefix). Example: `read_only`,
+  `battery_voltage_mv`.
+
+### Functions and Methods
+
+- Public methods: `camelCase`. Example: `readMessage()`, `sendMessage()`,
+  `handleMessage()`.
+- Private methods: `_camelCase` (single leading underscore). Example:
+  `_handleParamSet()`, `_sendRadioStatus()`.
+- Free functions: `camelCase`.
+
+### Variables
+
+- Private member variables: `_snake_case`. Examples: `_udp_port`,
+  `_last_status_time`.
+- Local variables and function parameters: `snake_case`.
+
+### Constants and Macros
+
+- Compile-time constants (`#define`, `constexpr`, `enum` values):
+  `UPPER_SNAKE_CASE`.
+- Project-specific macros use a short module prefix where collision risk
+  exists. Example: `WIFI_MODE_AP`, `VERSION_MAJOR`.
+- MAVLink protocol constants (prefixed `MAV_`) come from the MAVLink library
+  and are not renamed.
+
+### Migration Table (existing non-conformant identifiers)
+
+File renames, header guard updates, class renames, and struct renames MUST
+be done in a dedicated refactor commit before functional changes.
+
+| Current identifier | Renamed to | Location |
+|---|---|---|
+| `mavesp8266.h/.cpp` | `bridge.h/.cpp` | `src/` |
+| `mavesp8266_component.h/.cpp` | `component.h/.cpp` | `src/` |
+| `mavesp8266_gcs.h/.cpp` | `gcs.h/.cpp` | `src/` |
+| `mavesp8266_vehicle.h/.cpp` | `vehicle.h/.cpp` | `src/` |
+| `mavesp8266_parameters.h/.cpp` | `parameters.h/.cpp` | `src/` |
+| `mavesp8266_httpd.h/.cpp` | `httpd.h/.cpp` | `src/` |
+| `mavesp8266_ppm.h/.cpp` | `ppm.h/.cpp` | `src/` |
+| `MAVESP8266_*` header guards | `*_H` | all renamed headers |
+| `MAVESP8266_VERSION_*` macros | `VERSION_*` | `bridge.h` |
+| `MavESP8266Bridge` | `Bridge` | `bridge.h` |
+| `MavESP8266World` | `World` | `bridge.h` |
+| `MavESP8266Component` | `Component` | `component.h` |
+| `MavESP8266GCS` | `Gcs` | `gcs.h` |
+| `MavESP8266Vehicle` | `Vehicle` | `vehicle.h` |
+| `MavESP8266Parameters` | `Parameters` | `parameters.h` |
+| `MavESP8266Httpd` | `Httpd` | `httpd.h` |
+| `MavESP8266PPM` | `Ppm` | `ppm.h` |
+| `MavESP8266Log` | `Log` | `bridge.h` |
+| `stMavEspParameters` | `parameters_t` | `parameters.h` |
+| `MAVESP_WIFI_MODE_*` | `WIFI_MODE_*` | `parameters.h` |
+
+## Embedded Hardware Constraints
+
+These constraints apply to ALL code targeting the ESP32-S3-CAM platform and
+MUST be verified at each implementation step:
+
+- **PSRAM**: Code MUST NOT assume PSRAM is available. Large buffers intended for
+  PSRAM MUST use `heap_caps_malloc(size, MALLOC_CAP_SPIRAM)` with a fallback
+  path if PSRAM is absent.
+- **GPIO**: All GPIO pin assignments MUST reference the named constants in
+  `variants/esp32s3-cam/pins_arduino.h` — no raw pin numbers in application
+  code.
+- **Watchdog**: The hardware watchdog MUST NOT be disabled. Long-running
+  operations MUST call `yield()` or `esp_task_wdt_reset()` at appropriate
+  intervals.
+- **Flash partitions**: Any change to `partitions.csv` MUST be reviewed for
+  impact on OTA update capability and SPIFFS/LittleFS storage.
+
+## Git & CI Workflow
+
+### Branch Strategy
+
+All development uses a single-level branch hierarchy: each increment is
+developed on its own branch and merged directly to `main`.
+
+```
+main
+├── 0-foundation
+├── 1-ota
+├── 2-camera
+├── 3-dashboard
+└── 4-motor
+```
+
+Each increment branch maps one-to-one with an increment defined in `plan.md`.
+The concrete branch name MUST be declared in `plan.md` under its Increment
+heading — the `plan.md` entry is the single source of truth. Branch names MUST
+follow the pattern:
+
+```
+<N>-<slug>
+```
+
+Examples: `0-foundation`, `1-ota`, `2-camera`, `3-dashboard`, `4-motor`.
+
+### Merge Gate
+
+An increment branch MUST NOT be merged to `main` until ALL of the following
+conditions are satisfied:
+
+1. The build produces 0 errors and 0 warnings (`pio run -e esp32s3-cam`).
+2. All PlatformIO native unit tests pass (`pio test -e native`), where
+   applicable to the increment's scope.
+3. All Hardware-in-the-loop (HIL) test criteria defined in `plan.md` for that
+   increment have been executed on physical hardware and pass.
+4. The PR description includes a compliance statement listing the constitution
+   principles verified (e.g. "Principles I, II, V verified").
+
+No merge MAY bypass this gate — not for schedule, not for convenience.
+
+**Rationale**: `main` MUST always represent a state that has been physically
+tested on hardware (Principle III). The safety-critical nature of this firmware
+(Principle I) means an untested merge to `main` creates a hidden risk the next
+time the device is flashed to a vehicle.
+
+### Commit Discipline
+
+- Each commit MUST represent one logical change. WIP or checkpoint commits
+  MUST be squashed before the PR is opened.
+- Commit messages MUST follow the form:
+  `<type>(<scope>): <short description>`
+  where `type` is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+- Example: `feat(ota): add armed-state gate to /upload handler`
+- Force-push to `main` is PROHIBITED at all times. Force-push to an increment
+  branch is permitted before the PR is opened, but PROHIBITED once the PR is open.
+
+### Tagging
+
+After an increment branch is merged and the device has been reflashed and
+verified on hardware, a lightweight tag MUST be created on `main`:
+
+```
+<N>
+```
+
+Example: `1`. Tags mark known-good firmware states that can be
+recovered to if a subsequent increment introduces a regression.
+
+---
+
+## Development Workflow
+
+Feature development MUST follow the Spec-Driven Development workflow:
+
+1. **`/speckit.specify`** — define the feature in terms of user scenarios and
+   acceptance criteria before any code is written.
+2. **`/speckit.plan`** — produce a technical plan referencing the ESP32-S3-CAM
+   hardware constraints and the performance budgets in Principle V.
+3. **`/speckit.tasks`** — break into tasks ordered by dependency; safety-critical
+   tasks (Principle I) MUST appear as blocking prerequisites.
+4. **`/speckit.implement`** — implement with continuous reference to spec and
+   plan; do not deviate without updating the spec first.
+
+Each increment MUST have a corresponding spec artifact under `specs/` and a
+branch declared in `plan.md` per the conventions in the Git & CI Workflow
+section above. PRs MUST reference the spec artifact and include the merge-gate
+compliance statement.
+
+All implementation decisions that deviate from the plan MUST be documented in
+the spec's `Notes` section before the PR is merged — not after.
+
+## Governance
+
+This constitution supersedes all prior ad-hoc coding practices and verbal
+agreements for this project. In any conflict between this constitution and a
+convenience or deadline, this constitution takes precedence.
+
+**Amendment process**:
+
+- PATCH (typos, clarifications): Any contributor may amend; bump patch version.
+- MINOR (new principle or section): Requires documented rationale; bump minor
+  version.
+- MAJOR (removal or redefinition of existing principle): Requires explicit
+  justification of why the old principle is no longer valid, plus a migration
+  note for in-flight features; bump major version.
+
+**Compliance review**: Every PR description MUST include a one-line statement
+confirming which principles were checked (e.g., "Principles I, II, V verified").
+PRs that omit this statement SHOULD be returned for revision before review.
+
+**Runtime guidance**: Use `.github/copilot-instructions.md` for AI agent
+runtime guidance and tooling configuration. Use this constitution for governing
+principles that apply to all contributors and all agents equally.
+
+**Version**: 1.4.1 | **Ratified**: 2026-04-19 | **Last Amended**: 2026-04-26

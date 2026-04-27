@@ -35,13 +35,17 @@
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
-#include "mavesp8266.h"
-#include "mavesp8266_parameters.h"
-#include "mavesp8266_gcs.h"
-#include "mavesp8266_vehicle.h"
-#include "mavesp8266_httpd.h"
-#include "mavesp8266_component.h"
-#include "mavesp8266_ppm.h"
+#include "bridge.h"
+#include "parameters.h"
+#include "gcs.h"
+#include "vehicle.h"
+#include "httpd.h"
+#include "component.h"
+#include "ppm.h"
+
+#ifdef ARDUINO_ARCH_ESP32
+    #include <esp_ota_ops.h>
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
     #include <ESPmDNS.h>
@@ -53,9 +57,9 @@
 
 //---------------------------------------------------------------------------------
 //-- HTTP Update Status
-class MavESP8266UpdateImp : public MavESP8266Update {
+class OtaUpdateImp : public OtaUpdate {
 public:
-    MavESP8266UpdateImp ()
+    OtaUpdateImp ()
         : _isUpdating(false)
     {
 
@@ -79,34 +83,40 @@ private:
 
 
 
+// T023: Track whether the new firmware has been confirmed valid yet.
+// Set to true on the first HTTP request handled after boot; at that point
+// esp_ota_mark_app_valid_cancel_rollback() is called so the ESP-IDF OTA
+// watchdog doesn't roll back to the previous image on the next power cycle.
+static bool _ota_confirmed = false;
+
 //-- Singletons
 IPAddress               localIP;
-MavESP8266Component     Component;
-MavESP8266Parameters    Parameters;
-MavESP8266GCS           GCS;
-MavESP8266Vehicle       Vehicle;
-MavESP8266Httpd         updateServer;
-MavESP8266UpdateImp     updateStatus;
-MavESP8266Log           Logger;
-MavESP8266PPM           PWMConverter;
+Component               gComponent;
+Parameters              gParameters;
+Gcs                     gGCS;
+Vehicle                 gVehicle;
+Httpd                   updateServer;
+OtaUpdateImp            updateStatus;
+Log                     gLogger;
+Ppm                     gPWMConverter;
 
 //---------------------------------------------------------------------------------
 //-- Accessors
-class MavESP8266WorldImp : public MavESP8266World {
+class WorldImp : public World {
 public:
-    MavESP8266Parameters*   getParameters   () { return &Parameters;    }
-    MavESP8266Component*    getComponent    () { return &Component;     }
-    MavESP8266Vehicle*      getVehicle      () { return &Vehicle;       }
-    MavESP8266GCS*          getGCS          () { return &GCS;           }
-    MavESP8266Log*          getLogger       () { return &Logger;        }
-    MavESP8266PPM*          getPWM          () { return &PWMConverter;  }
+    Parameters*   getParameters   () { return &gParameters;    }
+    Component*    getComponent    () { return &gComponent;     }
+    Vehicle*      getVehicle      () { return &gVehicle;       }
+    Gcs*          getGCS          () { return &gGCS;           }
+    Log*          getLogger       () { return &gLogger;        }
+    Ppm*          getPWM          () { return &gPWMConverter;  }
 };
 
-MavESP8266WorldImp      World;
+WorldImp                gWorld;
 
-MavESP8266World* getWorld()
+World* getWorld()
 {
-    return &World;
+    return &gWorld;
 }
 
 //---------------------------------------------------------------------------------
@@ -142,8 +152,8 @@ void wait_for_client() {
 //---------------------------------------------------------------------------------
 //-- Reset all parameters whenever the reset gpio pin is active
 void reset_interrupt(){
-    Parameters.resetToDefaults();
-    Parameters.saveAllToEeprom();
+    gParameters.resetToDefaults();
+    gParameters.saveAllToEeprom();
 #ifdef ARDUINO_ARCH_ESP32
     ESP.restart();
 #else
@@ -155,7 +165,7 @@ void reset_interrupt(){
 //-- Set things up
 void setup() {
     delay(1000);
-    Parameters.begin();
+    gParameters.begin();
 #ifdef ENABLE_DEBUG
     //   We only use it for non debug because GPIO02 is used as a serial
     //   pin (TX) when debugging.
@@ -165,7 +175,7 @@ void setup() {
     pinMode(GPIO02, INPUT_PULLUP);
     attachInterrupt(GPIO02, reset_interrupt, FALLING);
 #endif
-    Logger.begin(2048);
+    gLogger.begin(2048);
 
     DEBUG_LOG("\nConfiguring access point...\n");
 #ifdef ARDUINO_ARCH_ESP32
@@ -176,11 +186,11 @@ void setup() {
 
     WiFi.disconnect(true);
 
-    if(Parameters.getWifiMode() == MAVESP_WIFI_MODE_STA){
+    if(gParameters.getWifiMode() == WIFI_PREF_STA){
         //-- Connect to an existing network
         WiFi.mode(WIFI_STA);
-        WiFi.config(Parameters.getWifiStaIP(), Parameters.getWifiStaGateway(), Parameters.getWifiStaSubnet(), 0U, 0U);
-        WiFi.begin(Parameters.getWifiStaSsid(), Parameters.getWifiStaPassword());
+        WiFi.config(gParameters.getWifiStaIP(), gParameters.getWifiStaGateway(), gParameters.getWifiStaSubnet(), 0U, 0U);
+        WiFi.begin(gParameters.getWifiStaSsid(), gParameters.getWifiStaPassword());
 
         //-- Wait a minute to connect
         for(int i = 0; i < 120 && WiFi.status() != WL_CONNECTED; i++) {
@@ -195,18 +205,18 @@ void setup() {
         } else {
             //-- Fall back to AP mode if no connection could be established
             WiFi.disconnect(true);
-            Parameters.setWifiMode(MAVESP_WIFI_MODE_AP);
+            gParameters.setWifiMode(WIFI_PREF_AP);
         }
     }
 
-    if(Parameters.getWifiMode() == MAVESP_WIFI_MODE_AP){
+    if(gParameters.getWifiMode() == WIFI_PREF_AP){
         //-- Start AP
         WiFi.mode(WIFI_AP);
 #ifdef ARDUINO_ARCH_ESP32
-        WiFi.softAP(Parameters.getWifiSsid(), Parameters.getWifiPassword(), Parameters.getWifiChannel());
+        WiFi.softAP(gParameters.getWifiSsid(), gParameters.getWifiPassword(), gParameters.getWifiChannel());
 #else
         WiFi.encryptionType(AUTH_WPA2_PSK);
-        WiFi.softAP(Parameters.getWifiSsid(), Parameters.getWifiPassword(), Parameters.getWifiChannel());
+        WiFi.softAP(gParameters.getWifiSsid(), gParameters.getWifiPassword(), gParameters.getWifiChannel());
 #endif
         localIP = WiFi.softAPIP();
         wait_for_client();
@@ -228,15 +238,15 @@ void setup() {
     DEBUG_LOG("Start WiFi Bridge\n");
     DEBUG_LOG("Local IP: %s\n", localIP.toString().c_str());
 
-    Parameters.setLocalIPAddress(localIP);
+    gParameters.setLocalIPAddress(localIP);
     IPAddress gcs_ip(localIP);
     //-- I'm getting bogus IP from the DHCP server. Broadcasting for now.
     gcs_ip[3] = 255;
-    GCS.begin(&Vehicle, gcs_ip);
-    Vehicle.begin(&GCS);
+    gGCS.begin(&gVehicle, gcs_ip);
+    gVehicle.begin(&gGCS);
     //-- Initialize PWM Converter (ESP32 only) - Now using polling (WiFi-safe)
 #ifdef ARDUINO_ARCH_ESP32
-    PWMConverter.begin();
+    gPWMConverter.begin();
 #endif
     //-- Initialize Update Server
     updateServer.begin(&updateStatus);
@@ -246,19 +256,26 @@ void setup() {
 //-- Main Loop
 void loop() {
     if(!updateStatus.isUpdating()) {
-        if (Component.inRawMode()) {
-            GCS.readMessageRaw();
+        if (gComponent.inRawMode()) {
+            gGCS.readMessageRaw();
             delay(0);
-            Vehicle.readMessageRaw();
+            gVehicle.readMessageRaw();
 
         } else {
-            GCS.readMessage();
+            gGCS.readMessage();
             delay(0);
-            Vehicle.readMessage();
+            gVehicle.readMessage();
         }
     }
 #ifdef ARDUINO_ARCH_ESP32
-    PWMConverter.update();  // Now on GPIO14 (no conflict with GPIO2 factory reset)
+    gPWMConverter.update();  // Now on GPIO14 (no conflict with GPIO2 factory reset)
 #endif
     updateServer.checkUpdates();
+    // T023: Confirm firmware valid after first HTTP request (cancels OTA rollback)
+#ifdef ARDUINO_ARCH_ESP32
+    if (!_ota_confirmed) {
+        _ota_confirmed = true;
+        esp_ota_mark_app_valid_cancel_rollback();
+    }
+#endif
 }
