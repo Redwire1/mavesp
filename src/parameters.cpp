@@ -65,7 +65,11 @@ uint32_t    _wifi_subnetsta;
 uint32_t    _uart_baud_rate;
 uint32_t    _flash_left;
 int8_t      _raw_enable;
-uint8_t      _pwm_servo_channel;
+uint8_t     _pwm_servo_channel;
+uint8_t     _cam_resolution;
+uint8_t     _cam_quality;
+uint8_t     _pwm_enabled;
+uint8_t     _pwm_gpio;
 
 //-- Parameters
 //   No string support in parameters so we stash a char[16] into 4 uint32_t
@@ -98,7 +102,11 @@ uint8_t      _pwm_servo_channel;
      {"WIFI_SUBNET_STA",    &_wifi_subnetsta,       Parameters::ID_SUBNETSTA, sizeof(uint32_t),   MAV_PARAM_TYPE_UINT32,  false},
      {"UART_BAUDRATE",      &_uart_baud_rate,       Parameters::ID_UART,      sizeof(uint32_t),   MAV_PARAM_TYPE_UINT32,  false},
      {"RAW_ENABLE",         &_raw_enable,           Parameters::ID_RAW_ENABLE,sizeof(int8_t),     MAV_PARAM_TYPE_INT8,    false},
-     {"PWM_SERVO_CH",       &_pwm_servo_channel,    Parameters::ID_PWM_SERVO_CHAN, sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
+     {"PWM_SERVO_CHAN",      &_pwm_servo_channel,    Parameters::ID_PWM_SERVO_CHAN, sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
+     {"CAM_RESOLUTION",     &_cam_resolution,       Parameters::ID_CAM_RESOLUTION, sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
+     {"CAM_QUALITY",        &_cam_quality,          Parameters::ID_CAM_QUALITY,    sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
+     {"PWM_ENABLED",        &_pwm_enabled,          Parameters::ID_PWM_ENABLED,    sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
+     {"PWM_GPIO",           &_pwm_gpio,             Parameters::ID_PWM_GPIO,       sizeof(uint8_t), MAV_PARAM_TYPE_UINT8, false},
 };
 
 //---------------------------------------------------------------------------------
@@ -157,6 +165,10 @@ uint32_t    Parameters::getWifiStaSubnet  () { return _wifi_subnetsta;    }
 uint32_t    Parameters::getUartBaudRate   () { return _uart_baud_rate;    }
 int8_t      Parameters::getRawEnable      () { return _raw_enable;        }
 uint8_t     Parameters::getPWMServoChannel()  { return _pwm_servo_channel;   }
+uint8_t     Parameters::getCamResolution  ()  { return _cam_resolution;      }
+uint8_t     Parameters::getCamQuality     ()  { return _cam_quality;         }
+uint8_t     Parameters::getPWMEnabled     ()  { return _pwm_enabled;         }
+uint8_t     Parameters::getPWMGpio        ()  { return _pwm_gpio;            }
 
 //---------------------------------------------------------------------------------
 //-- Reset all to defaults
@@ -171,6 +183,10 @@ Parameters::resetToDefaults()
     _wifi_udp_cport    = DEFAULT_UDP_CPORT;
     _uart_baud_rate    = DEFAULT_UART_SPEED;
     _pwm_servo_channel = 5;
+    _cam_resolution    = 6;
+    _cam_quality       = 10;
+    _pwm_enabled       = 0;
+    _pwm_gpio          = 14;
     _wifi_ipsta        = 0;
     _wifi_gatewaysta   = 0;
     _wifi_subnetsta    = 0;
@@ -438,3 +454,9 @@ Parameters::setPWMServoChannel(uint8_t channel)
         _pwm_servo_channel = channel;
     }
 }
+
+//---------------------------------------------------------------------------------
+void Parameters::setCamResolution(uint8_t res)    { _cam_resolution = res;     }
+void Parameters::setCamQuality   (uint8_t quality){ _cam_quality    = quality; }
+void Parameters::setPWMEnabled   (uint8_t enabled){ _pwm_enabled    = enabled; }
+void Parameters::setPWMGpio      (uint8_t gpio)   { _pwm_gpio       = gpio;    }

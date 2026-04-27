@@ -190,6 +190,13 @@ Vehicle::_readMessage()
                         _last_heartbeat = millis();
                     _checkLinkErrors(&_msg);
                 }
+                // T018: Track armed state from every HEARTBEAT (first or not)
+                if(_msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+                    mavlink_heartbeat_t hb;
+                    mavlink_msg_heartbeat_decode(&_msg, &hb);
+                    _status.is_armed           = (hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) != 0;
+                    _status.last_heartbeat_ms  = millis();
+                }
 
                 if (msgReceived == MAVLINK_FRAMING_BAD_CRC) {
                     // we don't process messages locally with bad CRC,

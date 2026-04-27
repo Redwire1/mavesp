@@ -37,13 +37,13 @@
 
 #include "bridge.h"
 #include "httpd.h"
+#include "ota.h"
 #include "parameters.h"
 #include "gcs.h"
 #include "vehicle.h"
 
 #ifdef ARDUINO_ARCH_ESP32
     #include <WebServer.h>
-    #include <Update.h>
 #else
     #include <ESP8266WebServer.h>
 #endif
@@ -120,83 +120,64 @@ void respondOK() {
 }
 
 //---------------------------------------------------------------------------------
+// T019: GET /update — refuse if vehicle is armed
 void handle_update() {
+    link_status_t* vs = getWorld()->getVehicle()->getStatus();
+    if (vs->is_armed) {
+        String msg = FPSTR(kHEADER);
+        msg += "<h2 style='color:red'>&#9888; Disarm vehicle before updating firmware</h2>";
+        msg += "<p>The vehicle is currently ARMED. OTA update is disabled for safety.</p>";
+        msg += "<p><a href='/'>Back</a></p></body>";
+        webServer.sendHeader("Connection", "close");
+        webServer.send(409, FPSTR(kTEXTHTML), msg);
+        return;
+    }
     webServer.sendHeader("Connection", "close");
     webServer.sendHeader(FPSTR(kACCESSCTL), "*");
     webServer.send(200, FPSTR(kTEXTHTML), FPSTR(kUPLOADFORM));
 }
 
 //---------------------------------------------------------------------------------
+// T020: POST /upload — complete response sent after upload finishes
 void handle_upload() {
     webServer.sendHeader("Connection", "close");
     webServer.sendHeader(FPSTR(kACCESSCTL), "*");
-    webServer.send(200, FPSTR(kTEXTPLAIN), (Update.hasError()) ? "FAIL" : "OK");
-    if(updateCB) {
-        updateCB->updateCompleted();
+    if (otaGetState() == OTA_COMPLETE) {
+        webServer.send(200, FPSTR(kTEXTPLAIN), "OK");
+        if(updateCB) { updateCB->updateCompleted(); }
+        delay(500);
+        ESP.restart();
+    } else {
+        webServer.send(500, FPSTR(kTEXTPLAIN), "FAIL");
+        if(updateCB) { updateCB->updateError(); }
     }
-    ESP.restart();
 }
 
 //---------------------------------------------------------------------------------
+// T020: POST /upload — chunked upload handler using ota* API
 void handle_upload_status() {
-    bool success  = true;
-    if(!started) {
-        started = true;
-        if(updateCB) {
-            updateCB->updateStarted();
-        }
-    }
     HTTPUpload& upload = webServer.upload();
-    if(upload.status == UPLOAD_FILE_START) {
-        #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.setDebugOutput(true);
-        #endif
-#ifndef ARDUINO_ARCH_ESP32
-        WiFiUDP::stopAll();
-#endif
-        Serial.end();
-        #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.printf("Update: %s\n", upload.filename.c_str());
-        #endif
-#ifdef ARDUINO_ARCH_ESP32
-        if(!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-#else
-        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-        if(!Update.begin(maxSketchSpace)) {
-#endif
-            #ifdef DEBUG_SERIAL
-                Update.printError(DEBUG_SERIAL);
-            #endif
-            success = false;
+    if (upload.status == UPLOAD_FILE_START) {
+        // Armed gate via otaBegin (reads vehicle link_status_t.is_armed)
+        if (!otaBegin()) {
+            // Drain remaining chunks without processing
+            if(updateCB) { updateCB->updateError(); }
+            return;
         }
-    } else if(upload.status == UPLOAD_FILE_WRITE) {
-        if(Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-            #ifdef DEBUG_SERIAL
-                Update.printError(DEBUG_SERIAL);
-            #endif
-            success = false;
+        if (!started) {
+            started = true;
+            if(updateCB) { updateCB->updateStarted(); }
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (otaGetState() == OTA_IN_PROGRESS) {
+            otaWrite(upload.buf, upload.currentSize);
         }
     } else if (upload.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) {
-            #ifdef DEBUG_SERIAL
-                DEBUG_SERIAL.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-            #endif
-        } else {
-            #ifdef DEBUG_SERIAL
-                Update.printError(DEBUG_SERIAL);
-            #endif
-            success = false;
+        if (otaGetState() == OTA_IN_PROGRESS) {
+            otaEnd();
         }
-        #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.setDebugOutput(false);
-        #endif
     }
     yield();
-    if(!success) {
-        if(updateCB) {
-            updateCB->updateError();
-        }
-    }
 }
 
 //---------------------------------------------------------------------------------
@@ -496,6 +477,7 @@ void handle_getJSysInfo()
 }
 
 //---------------------------------------------------------------------------------
+// T021: /status.json — packet counters + armed state + uptimeMs
 void handle_getJSysStatus()
 {
     bool reset = false;
@@ -504,12 +486,13 @@ void handle_getJSysStatus()
     }
     link_status_t* gcsStatus = getWorld()->getGCS()->getStatus();
     link_status_t* vehicleStatus = getWorld()->getVehicle()->getStatus();
+    bool armed = vehicleStatus->is_armed;
     if(reset) {
         memset(gcsStatus,     0, sizeof(link_status_t));
         memset(vehicleStatus, 0, sizeof(link_status_t));
     }
-    char message[512];
-    snprintf(message, 512,
+    char message[600];
+    snprintf(message, sizeof(message),
         "{ "
         "\"gpackets\": \"%u\", "
         "\"gsent\": \"%u\", "
@@ -518,7 +501,9 @@ void handle_getJSysStatus()
         "\"vsent\": \"%u\", "
         "\"vlost\": \"%u\", "
         "\"radio\": \"%u\", "
-        "\"buffer\": \"%u\""
+        "\"buffer\": \"%u\", "
+        "\"armed\": %s, "
+        "\"uptimeMs\": %lu"
         " }",
         gcsStatus->packets_received,
         gcsStatus->packets_sent,
@@ -527,7 +512,9 @@ void handle_getJSysStatus()
         vehicleStatus->packets_sent,
         vehicleStatus->packets_lost,
         gcsStatus->radio_status_sent,
-        vehicleStatus->queue_status
+        vehicleStatus->queue_status,
+        armed ? "true" : "false",
+        (unsigned long)millis()
     );
     webServer.send(200, "application/json", message);
 }

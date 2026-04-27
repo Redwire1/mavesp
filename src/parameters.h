@@ -93,6 +93,10 @@ public:
         ID_UART,
         ID_RAW_ENABLE,
         ID_PWM_SERVO_CHAN,
+        ID_CAM_RESOLUTION,
+        ID_CAM_QUALITY,
+        ID_PWM_ENABLED,
+        ID_PWM_GPIO,
         ID_COUNT
     };
 
@@ -118,6 +122,10 @@ public:
     uint32_t    getUartBaudRate             ();
     int8_t      getRawEnable                ();
     uint8_t     getPWMServoChannel          ();
+    uint8_t     getCamResolution            ();
+    uint8_t     getCamQuality               ();
+    uint8_t     getPWMEnabled               ();
+    uint8_t     getPWMGpio                  ();
 
     void        setDebugEnabled             (int8_t enabled);
     void        setWifiMode                 (int8_t mode);
@@ -125,6 +133,10 @@ public:
     void        setWifiUdpHport             (uint16_t port);
     void        setWifiUdpCport             (uint16_t port);
     void        setWifiSsid                 (const char* ssid);
+    void        setCamResolution           (uint8_t res);
+    void        setCamQuality              (uint8_t quality);
+    void        setPWMEnabled              (uint8_t enabled);
+    void        setPWMGpio                 (uint8_t gpio);
     void        setWifiPassword             (const char* pwd);
     void        setWifiStaSsid              (const char* ssid);
     void        setWifiStaPassword          (const char* pwd);

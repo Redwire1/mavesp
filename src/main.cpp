@@ -44,6 +44,10 @@
 #include "ppm.h"
 
 #ifdef ARDUINO_ARCH_ESP32
+    #include <esp_ota_ops.h>
+#endif
+
+#ifdef ARDUINO_ARCH_ESP32
     #include <ESPmDNS.h>
 #else
     #include <ESP8266mDNS.h>
@@ -78,6 +82,12 @@ private:
 };
 
 
+
+// T023: Track whether the new firmware has been confirmed valid yet.
+// Set to true on the first HTTP request handled after boot; at that point
+// esp_ota_mark_app_valid_cancel_rollback() is called so the ESP-IDF OTA
+// watchdog doesn't roll back to the previous image on the next power cycle.
+static bool _ota_confirmed = false;
 
 //-- Singletons
 IPAddress               localIP;
@@ -261,4 +271,11 @@ void loop() {
     gPWMConverter.update();  // Now on GPIO14 (no conflict with GPIO2 factory reset)
 #endif
     updateServer.checkUpdates();
+    // T023: Confirm firmware valid after first HTTP request (cancels OTA rollback)
+#ifdef ARDUINO_ARCH_ESP32
+    if (!_ota_confirmed) {
+        _ota_confirmed = true;
+        esp_ota_mark_app_valid_cancel_rollback();
+    }
+#endif
 }
